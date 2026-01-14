@@ -1,31 +1,48 @@
 using Test
-using FTIRFiles
-using DataFrames
+using JASCOFiles
+using Dates
 
-
-data_dir = joinpath(dirname(dirname(pathof(ProjectIO))), "test/data")
-spectrum_file = data_dir * "/liquid_crystal_in_etalon.csv"
-angles_dir = data_dir * "/angle_resolved"
-
-println(pwd())
+data_dir = joinpath(@__DIR__, "data")
+spectrum_file = joinpath(data_dir, "testdata.csv")
 
 @testset "read JASCO FTIR csv file" begin
-    df = ProjectIO.read_spectrum(spectrum_file)
-    @test df[:, 1][1] == 999.9101
-    @test round(df[:, 1][end], sigdigits=8) == 6000.4248
-    @test round(df[:, 2][1], sigdigits=3) ≈ 0.00673
-    @test size(df) == (10373, 2)
-    @test names(df)[1] == "Wavenumber"
-    @test names(df)[2] == "Transmittance"
+    # 1. Test the Constructor
+    s = Spectrum(spectrum_file)
+
+    # Check first and last X values (Wavenumbers)
+    @test s.x[1] == 999.9101
+    @test round(s.x[end], sigdigits=8) == 7000.335
+
+    # Check first Y value (Absorbance)
+    @test round(s.y[1], sigdigits=3) ≈ 0.573
+
+    @test length(s) == 12447
+    @test size(s) == (12447,)
+
+    # 4. Test Metadata Extraction
+    @test s.metadata["XUNITS"] == "1/CM"
+    @test s.metadata["YUNITS"] == "ABSORBANCE"
+
+    @test year(s.date) >= 2000
 end
 
+@testset "Edge Cases and Error Handling" begin
+    malformed_file = joinpath(data_dir, "malformed.csv")
+    s = read_spectrum(malformed_file) # Test alias here
 
-@testset "read angle-resolved data" begin
-    datalist = ProjectIO.read_angle_data_from_dir(angles_dir)
-    @test length(datalist) == 6
-    @test [typeof(i[1]) == Int for i in datalist] == ones(length(datalist))
-    @test typeof(datalist[1][2]) == DataFrame
-    for d in datalist
-        @test length(d) == 2
-    end
+    # Test defaults for missing/invalid metadata
+    @test s.title == "Malformed Data Test"
+    @test s.spectrometer == "Unknown"
+    @test s.xunits == "cm-1" # Default
+    @test s.yunits == "Abs"  # Default
+    @test s.date == DateTime(2000) # Default failure fallback
+
+    # Test skipping of invalid data lines
+    # valid lines: (1000.0, 0.1), (2000.0, 0.2), (4000.0, 0.4)
+    # GARBAGE_LINE should be skipped
+    # 3000.0,NoteANumber should be skipped (parse error)
+    @test length(s.x) == 3
+    @test length(s.y) == 3
+    @test s.x == [1000.0, 2000.0, 4000.0]
+    @test s.y == [0.1, 0.2, 0.4]
 end

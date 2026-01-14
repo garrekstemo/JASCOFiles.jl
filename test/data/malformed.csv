@@ -1,0 +1,9 @@
+TITLE,Malformed Data Test
+DATE,InvalidDate
+TIME,InvalidTime
+XYDATA
+1000.0,0.1
+GARBAGE_LINE
+2000.0,0.2
+3000.0,NoteANumber
+4000.0,0.4
