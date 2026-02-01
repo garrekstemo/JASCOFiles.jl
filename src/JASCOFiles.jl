@@ -8,5 +8,6 @@ include("parser.jl")
 include("utils.jl")
 
 export AbstractJASCOSpectrum, Spectrum, read_spectrum
+export isftir, israman, isuvvis
 
 end # module

@@ -54,6 +54,7 @@ function Spectrum(path::String; encoding=enc"SHIFT-JIS")
         get(raw_metadata, "TITLE", "Untitled"),
         dt,
         spec_name,
+        get(raw_metadata, "DATA TYPE", "Unknown"),
         get(raw_metadata, "XUNITS", "cm-1"),
         get(raw_metadata, "YUNITS", "Abs"),
         xdata,
