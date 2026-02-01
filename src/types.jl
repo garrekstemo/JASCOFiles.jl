@@ -6,7 +6,7 @@ Abstract type for JASCO spectra.
 abstract type AbstractJASCOSpectrum end
 
 """
-    Spectrum <: AbstractJASCOSpectrum
+    JASCOSpectrum <: AbstractJASCOSpectrum
 
 Represents a single spectrum parsed from a JASCO file.
 
@@ -21,7 +21,7 @@ Represents a single spectrum parsed from a JASCO file.
 - `y::Vector{Float64}`: Y-axis data points.
 - `metadata::Dict{String, Any}`: Raw metadata dictionary from the file header.
 """
-struct Spectrum <: AbstractJASCOSpectrum
+struct JASCOSpectrum <: AbstractJASCOSpectrum
     title::String
     date::DateTime
     spectrometer::String

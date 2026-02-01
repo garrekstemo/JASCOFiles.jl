@@ -6,7 +6,7 @@ data_dir = joinpath(@__DIR__, "data")
 spectrum_file = joinpath(data_dir, "ftir_test.csv")
 
 @testset "read JASCO FTIR csv file" begin
-    s = Spectrum(spectrum_file)
+    s = JASCOSpectrum(spectrum_file)
 
     # Check first and last X values (Wavenumbers)
     @test s.x[1] == 999.9101
@@ -50,7 +50,7 @@ end
 
 @testset "read JASCO Raman csv file" begin
     raman_file = joinpath(data_dir, "raman_test.csv")
-    s = Spectrum(raman_file)
+    s = JASCOSpectrum(raman_file)
 
     # Check data type
     @test s.datatype == "RAMAN SPECTRUM"
@@ -74,7 +74,7 @@ end
 
 @testset "Raman edge cases" begin
     malformed_file = joinpath(data_dir, "raman_malformed.csv")
-    s = Spectrum(malformed_file)
+    s = JASCOSpectrum(malformed_file)
 
     @test s.title == "Malformed Raman Test"
     @test s.datatype == "RAMAN SPECTRUM"
@@ -90,8 +90,8 @@ end
 end
 
 @testset "type predicates" begin
-    ftir = Spectrum(joinpath(data_dir, "ftir_test.csv"))
-    raman = Spectrum(joinpath(data_dir, "raman_test.csv"))
+    ftir = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))
+    raman = JASCOSpectrum(joinpath(data_dir, "raman_test.csv"))
 
     @test isftir(ftir)
     @test !israman(ftir)

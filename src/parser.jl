@@ -1,4 +1,4 @@
-function Spectrum(path::String; encoding=enc"SHIFT-JIS")
+function JASCOSpectrum(path::String; encoding=enc"SHIFT-JIS")
     raw_metadata = Dict{String,Any}()
     xdata, ydata = Float64[], Float64[]
     is_data_section = false
@@ -50,7 +50,7 @@ function Spectrum(path::String; encoding=enc"SHIFT-JIS")
         end
     end
 
-    return Spectrum(
+    return JASCOSpectrum(
         get(raw_metadata, "TITLE", "Untitled"),
         dt,
         spec_name,
@@ -67,6 +67,6 @@ end
 """
     read_spectrum(path::String; kwargs...)
 
-Convenience alias for `Spectrum(path; kwargs...)`. Reads a JASCO spectrum file.
+Convenience alias for `JASCOSpectrum(path; kwargs...)`. Reads a JASCO spectrum file.
 """
-read_spectrum(path; kwargs...) = Spectrum(path; kwargs...)
+read_spectrum(path; kwargs...) = JASCOSpectrum(path; kwargs...)
