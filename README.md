@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/garrekstemo/JASCOFiles.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/garrekstemo/JASCOFiles.jl/actions/workflows/CI.yml)
 [![docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://garrekstemo.github.io/JASCOFiles.jl/dev/)
+[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 JASCOFiles.jl reads CSV files exported from JASCO spectrometers (FTIR, Raman, UV-Vis).
 It does not read .jws files directly—export raw data to CSV from the JASCO software.
