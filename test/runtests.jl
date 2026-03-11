@@ -1,9 +1,14 @@
 using Test
 using JASCOFiles
 using Dates
+using Aqua
 
 data_dir = joinpath(@__DIR__, "data")
 spectrum_file = joinpath(data_dir, "ftir_test.csv")
+
+@testset "Code quality (Aqua.jl)" begin
+    Aqua.test_all(JASCOFiles)
+end
 
 @testset "read JASCO FTIR csv file" begin
     s = JASCOSpectrum(spectrum_file)
