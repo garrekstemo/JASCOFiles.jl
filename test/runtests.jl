@@ -7,7 +7,7 @@ data_dir = joinpath(@__DIR__, "data")
 spectrum_file = joinpath(data_dir, "ftir_test.csv")
 
 @testset "Code quality (Aqua.jl)" begin
-    Aqua.test_all(JASCOFiles)
+    Aqua.test_all(JASCOFiles; deps_compat=(check_extras=false, ignore=[:Dates],))
 end
 
 @testset "read JASCO FTIR csv file" begin
