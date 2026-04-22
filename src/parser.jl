@@ -1,36 +1,48 @@
-function JASCOSpectrum(path::String; encoding=enc"SHIFT-JIS")
+function JASCOSpectrum(path::AbstractString; encoding=enc"SHIFT-JIS")
     raw_metadata = Dict{String,Any}()
     xdata, ydata = Float64[], Float64[]
     is_data_section = false
+    delim = ','
+    delim_detected = false
 
     # Using the standard StringEncodings block pattern
     open(path, encoding) do f
-        for line in eachline(f)
-            line = strip(line)
-            if isempty(line)
-                continue
+        for raw_line in eachline(f)
+            isempty(strip(raw_line)) && continue
+
+            # JASCO FTIR/Raman files use commas; V-series UV-Vis uses tabs.
+            # Detect on the raw line so trailing delimiters (e.g. empty-value
+            # header rows like "TITLE\t") aren't lost to stripping.
+            if !delim_detected
+                if occursin('\t', raw_line)
+                    delim = '\t'
+                    delim_detected = true
+                elseif occursin(',', raw_line)
+                    delim = ','
+                    delim_detected = true
+                end
             end
 
-            if line == "XYDATA"
+            if strip(raw_line) == "XYDATA"
                 is_data_section = true
                 continue
             end
 
+            parts = split(raw_line, delim)
             if is_data_section
-                parts = split(line, ",")
                 if length(parts) >= 2
                     try
-                        x_val = parse(Float64, parts[1])
-                        y_val = parse(Float64, parts[2])
+                        x_val = parse(Float64, strip(parts[1]))
+                        y_val = parse(Float64, strip(parts[2]))
                         push!(xdata, x_val)
                         push!(ydata, y_val)
-                    catch
-                    end # Skip lines that aren't numeric
+                    catch e
+                        e isa ArgumentError || rethrow()
+                    end
                 end
             else
-                parts = split(line, ",")
                 if length(parts) >= 2
-                    raw_metadata[strip(parts[1])] = strip(parts[2])
+                    raw_metadata[strip(parts[1])] = strip(join(parts[2:end], delim))
                 end
             end
         end
@@ -62,11 +74,3 @@ function JASCOSpectrum(path::String; encoding=enc"SHIFT-JIS")
         raw_metadata
     )
 end
-
-# Alias for convenience
-"""
-    read_spectrum(path::String; kwargs...)
-
-Convenience alias for `JASCOSpectrum(path; kwargs...)`. Reads a JASCO spectrum file.
-"""
-read_spectrum(path; kwargs...) = JASCOSpectrum(path; kwargs...)

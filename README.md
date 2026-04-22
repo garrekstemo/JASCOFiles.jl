@@ -2,7 +2,9 @@
 
 [![CI](https://github.com/garrekstemo/JASCOFiles.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/garrekstemo/JASCOFiles.jl/actions/workflows/CI.yml)
 [![docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://garrekstemo.github.io/JASCOFiles.jl/dev/)
+[![codecov](https://codecov.io/gh/garrekstemo/JASCOFiles.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/garrekstemo/JASCOFiles.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
+[![license](https://img.shields.io/github/license/garrekstemo/JASCOFiles.jl)](LICENSE)
 
 JASCOFiles.jl reads CSV files exported from JASCO spectrometers (FTIR, Raman, UV-Vis).
 It does not read .jws files directly—export raw data to CSV from the JASCO software.
@@ -20,7 +22,7 @@ Pkg.add(url="https://github.com/garrekstemo/JASCOFiles.jl")
 using JASCOFiles
 
 # Load a spectrum (works for FTIR, Raman, or UV-Vis)
-s = Spectrum("path/to/spectrum.csv")
+s = JASCOSpectrum("path/to/spectrum.csv")
 
 # Access data
 s.x        # wavenumber or wavelength
@@ -45,4 +47,13 @@ s.metadata["FIRSTX"]
 |------------|------------------|--------|
 | FTIR | `"INFRARED SPECTRUM"` | Supported |
 | Raman | `"RAMAN SPECTRUM"` | Supported |
-| UV-Vis | `"UV/VIS SPECTRUM"` | Planned |
+| UV-Vis | `"UV/VIS SPECTRUM"` or blank | Supported |
+
+FTIR and Raman files use comma-separated headers; V-series UV-Vis instruments
+(e.g. V-730) use tab-separated headers and leave `DATA TYPE` blank. The parser
+detects the delimiter automatically, and `isuvvis` falls back to wavelength
+units/range when `DATA TYPE` is empty.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

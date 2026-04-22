@@ -1,19 +1,21 @@
 name = "JASCOFiles"
 uuid = "8f461479-960a-4355-a802-16cf8971498c"
 authors = ["Garrek Stemo <8449000+garrekstemo@users.noreply.github.com>"]
-version = "0.6.0"
+version = "0.1.0"
 
 [deps]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 StringEncodings = "69024149-9ee7-55f6-a4c4-859efe599b68"
 
+[compat]
+Aqua = "0.8"
+Dates = "1"
+StringEncodings = "0.3"
+julia = "1.10"
+
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
-[compat]
-Aqua = "0.8"
-StringEncodings = "0.3"
-julia = "1.10"
 [targets]
 test = ["Aqua", "Test"]

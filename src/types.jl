@@ -32,3 +32,21 @@ struct JASCOSpectrum <: AbstractJASCOSpectrum
     y::Vector{Float64}
     metadata::Dict{String,Any}
 end
+
+function Base.show(io::IO, ::MIME"text/plain", s::JASCOSpectrum)
+    println(io, "JASCOSpectrum: ", s.datatype)
+    println(io, "  title:        ", repr(s.title))
+    println(io, "  spectrometer: ", repr(s.spectrometer))
+    println(io, "  date:         ", s.date)
+    println(io, "  xunits:       ", s.xunits, "  (", length(s.x), " points)")
+    println(io, "  yunits:       ", s.yunits)
+    if !isempty(s.x)
+        println(io, "  range:        ", s.x[1], " → ", s.x[end])
+    end
+    print(io, "  metadata:     ", length(s.metadata), " keys")
+end
+
+function Base.show(io::IO, s::JASCOSpectrum)
+    print(io, "JASCOSpectrum(", repr(s.title), ", ", s.datatype, ", ",
+          length(s.x), " points)")
+end

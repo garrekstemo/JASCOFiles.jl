@@ -20,6 +20,17 @@ israman(s::AbstractJASCOSpectrum) = s.datatype == "RAMAN SPECTRUM"
 """
     isuvvis(s::AbstractJASCOSpectrum) -> Bool
 
-Return `true` if the spectrum is a UV-Vis spectrum.
+Return `true` if the spectrum is a UV-Vis (or UV-Vis/NIR) spectrum.
+
+Some JASCO instruments (e.g. the V-730) export files with a blank `DATA TYPE`
+field. In that case, the spectrum is classified as UV-Vis when `xunits` is
+`"NANOMETERS"` and the wavelength range falls within 100–3500 nm.
 """
-isuvvis(s::AbstractJASCOSpectrum) = s.datatype == "UV/VIS SPECTRUM"
+function isuvvis(s::AbstractJASCOSpectrum)
+    s.datatype == "UV/VIS SPECTRUM" && return true
+    isempty(s.datatype) || return false
+    s.xunits == "NANOMETERS" || return false
+    isempty(s.x) && return false
+    xmin, xmax = extrema(s.x)
+    return 100 ≤ xmin && xmax ≤ 3500
+end

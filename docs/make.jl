@@ -6,7 +6,7 @@ DocMeta.setdocmeta!(JASCOFiles, :DocTestSetup, :(using JASCOFiles); recursive=tr
 makedocs(;
     modules=[JASCOFiles],
     authors="Garrek Stemo <8449000+garrekstemo@users.noreply.github.com>",
-    repo="https://github.com/garrekstemo/JASCOFiles.jl/blob/{commit}{path}#{line}",
+    repo=Remotes.GitHub("garrekstemo", "JASCOFiles.jl"),
     sitename="JASCOFiles.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
