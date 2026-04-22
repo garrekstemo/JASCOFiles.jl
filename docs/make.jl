@@ -8,6 +8,7 @@ makedocs(;
     authors="Garrek Stemo <8449000+garrekstemo@users.noreply.github.com>",
     repo=Remotes.GitHub("garrekstemo", "JASCOFiles.jl"),
     sitename="JASCOFiles.jl",
+    checkdocs=:exports,
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
         canonical="https://garrekstemo.github.io/JASCOFiles.jl",
@@ -15,7 +16,12 @@ makedocs(;
         assets=String[],
     ),
     pages=[
-        "Home" => "index.md",
+        "Introduction" => "index.md",
+        "Guide" => Any[
+            "Quick start" => "guide/quickstart.md",
+            "File formats" => "guide/file-formats.md",
+        ],
+        "Library" => "lib/public.md",
     ],
 )
 
