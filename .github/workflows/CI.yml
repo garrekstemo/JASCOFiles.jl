@@ -13,21 +13,15 @@ concurrency:
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 jobs:
   test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ github.event_name }}
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.version == 'nightly' }}
     strategy:
       fail-fast: false
       matrix:
-        version:
-          - '1' # Current stable
-          - '1.10' # LTS
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
+        version: ['1'] # Current stable
+        os: [ubuntu-latest, macos-latest, windows-latest]
         include:
-          - version: 'nightly'
+          - version: '1.10' # LTS
             os: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
