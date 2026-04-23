@@ -19,8 +19,10 @@ using StringEncodings
 include("types.jl")
 include("parser.jl")
 include("utils.jl")
+include("transforms.jl")
 
 export AbstractJASCOSpectrum, JASCOSpectrum
 export isftir, israman, isuvvis
+export transmittance_to_absorbance, absorbance_to_transmittance
 
 end # module
