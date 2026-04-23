@@ -35,3 +35,11 @@ Modules = [JASCOFiles]
 Pages = ["utils.jl"]
 Private = false
 ```
+
+## Transmittance ↔ absorbance conversions
+
+```@autodocs
+Modules = [JASCOFiles]
+Pages = ["transforms.jl"]
+Private = false
+```
