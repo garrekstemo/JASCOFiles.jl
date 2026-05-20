@@ -38,9 +38,23 @@ isftir(s)   # true if FTIR spectrum
 israman(s)  # true if Raman spectrum
 isuvvis(s)  # true if UV-Vis spectrum
 
-# All metadata from the file header
-s.metadata["NPOINTS"]
-s.metadata["FIRSTX"]
+# All metadata from header and footer
+s.metadata["TIME"]
+s.metadata["Accumulation"]
+```
+
+## Convenience
+
+```julia
+# Convert between transmittance and absorbance (JASCO's percent-T convention)
+t = absorbance_to_transmittance(s)   # yunits → "TRANSMITTANCE"
+a = transmittance_to_absorbance(t)   # yunits → "ABS", round-trips back
+
+# Footer keys with Japanese names are also accessible via English aliases
+s.metadata["積算回数"]       # "16"
+s.metadata["Accumulation"]  # "16"
+s.metadata["光源"]           # "Standard light source"
+s.metadata["Light source"]  # "Standard light source"
 ```
 
 ## Supported Instruments
@@ -50,8 +64,3 @@ s.metadata["FIRSTX"]
 | FTIR | `"INFRARED SPECTRUM"` |
 | Raman | `"RAMAN SPECTRUM"` |
 | UV-Vis | `"UV/VIS SPECTRUM"` or blank |
-
-FTIR and Raman files use comma-separated headers; V-series UV-Vis instruments
-(e.g. V-730) use tab-separated headers and leave `DATA TYPE` blank. The parser
-detects the delimiter automatically, and `isuvvis` falls back to wavelength
-units/range when `DATA TYPE` is empty.

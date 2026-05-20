@@ -17,10 +17,7 @@ makedocs(;
     ),
     pages=[
         "Introduction" => "index.md",
-        "Guide" => Any[
-            "Quick start" => "guide/quickstart.md",
-            "File formats" => "guide/file-formats.md",
-        ],
+        "File formats" => "guide/file-formats.md",
         "Library" => "lib/public.md",
     ],
 )
