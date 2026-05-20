@@ -11,9 +11,11 @@ It does not read .jws files directly—export raw data to CSV from the JASCO sof
 
 ## Installation
 
+To install JASCOFiles.jl, use the Julia package manager:
+
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/garrekstemo/JASCOFiles.jl")
+Pkg.add("JASCOFiles")
 ```
 
 ## Usage
@@ -43,17 +45,13 @@ s.metadata["FIRSTX"]
 
 ## Supported Instruments
 
-| Instrument | `datatype` field | Status |
-|------------|------------------|--------|
-| FTIR | `"INFRARED SPECTRUM"` | Supported |
-| Raman | `"RAMAN SPECTRUM"` | Supported |
-| UV-Vis | `"UV/VIS SPECTRUM"` or blank | Supported |
+| Instrument | `datatype` field |
+|------------|------------------|
+| FTIR | `"INFRARED SPECTRUM"` |
+| Raman | `"RAMAN SPECTRUM"` |
+| UV-Vis | `"UV/VIS SPECTRUM"` or blank |
 
 FTIR and Raman files use comma-separated headers; V-series UV-Vis instruments
 (e.g. V-730) use tab-separated headers and leave `DATA TYPE` blank. The parser
 detects the delimiter automatically, and `isuvvis` falls back to wavelength
 units/range when `DATA TYPE` is empty.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
