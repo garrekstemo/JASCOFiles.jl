@@ -127,6 +127,32 @@ fig, ax, ln = lines(s.x, s.y;
     axis = (xlabel = xlabel(s), ylabel = ylabel(s), title = s.title))
 ```
 
+## DataFrames and CSV
+
+A `JASCOSpectrum` plugs into the [Tables.jl](https://github.com/JuliaData/Tables.jl) ecosystem with `:x` and `:y` columns. `DataFrame`, `CSV.write`, `Arrow.write`, and other Tables consumers work directly:
+
+```julia
+using JASCOFiles, DataFrames
+
+s = JASCOSpectrum("sample.csv")
+df = DataFrame(s)            # columns :x and :y
+```
+
+```julia
+using JASCOFiles, CSV
+
+CSV.write("sample_xy.csv", JASCOSpectrum("sample.csv"))
+```
+
+You never need to `using Tables` yourself — DataFrames, CSV, and friends pull it in transitively, and the package extension loads as soon as both `JASCOFiles` and a Tables consumer are in the same session.
+
+For labelled headers when exporting, rename after conversion:
+
+```julia
+df = rename!(DataFrame(s), :x => :wavenumber, :y => :absorbance)
+CSV.write("sample_named.csv", df)
+```
+
 ## Issues and contributions
 
 If you run into a JASCO file this package mis-parses — especially one from a firmware version or instrument line not yet covered — please open an issue at [github.com/garrekstemo/JASCOFiles.jl/issues](https://github.com/garrekstemo/JASCOFiles.jl/issues). A minimal excerpt of the offending file is the most helpful thing to attach.

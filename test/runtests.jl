@@ -4,6 +4,7 @@ using Dates
 using Aqua
 using StringEncodings
 using Makie
+using Tables
 
 data_dir = joinpath(@__DIR__, "data")
 spectrum_file = joinpath(data_dir, "ftir_test.csv")
@@ -371,4 +372,33 @@ end
     _, axr, _ = plot(r)
     @test axr.xreversed[] == false
     @test axr.xlabel[] == "Raman shift (cm⁻¹)"
+end
+
+@testset "Tables.jl interface" begin
+    s = JASCOSpectrum(spectrum_file)
+
+    @test Tables.istable(JASCOSpectrum)
+    @test Tables.istable(s)
+    @test Tables.columnaccess(JASCOSpectrum)
+    @test Tables.columnaccess(s)
+
+    cols = Tables.columns(s)
+    @test propertynames(cols) == (:x, :y)
+    @test cols.x === s.x
+    @test cols.y === s.y
+
+    sch = Tables.schema(s)
+    @test sch.names == (:x, :y)
+    @test sch.types == (Float64, Float64)
+
+    # Round-trip through Tables.columntable: same data, same column names.
+    ct = Tables.columntable(s)
+    @test ct.x == s.x
+    @test ct.y == s.y
+
+    # Row-access works through the generic Tables fallback over column access.
+    rows = collect(Tables.rows(s))
+    @test length(rows) == length(s)
+    @test Tables.getcolumn(rows[1], :x) == s.x[1]
+    @test Tables.getcolumn(rows[1], :y) == s.y[1]
 end
