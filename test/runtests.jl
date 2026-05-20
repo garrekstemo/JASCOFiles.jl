@@ -122,12 +122,12 @@ end
     # Original Japanese keys preserved
     @test s.metadata["積算回数"] == "16"
     @test s.metadata["検出器"] == "TGS"
-    @test s.metadata["会社"] == "NAIST"
+    @test s.metadata["会社"] == "Test Lab"
 
     # English alias keys added
     @test s.metadata["Accumulation"] == "16"
     @test s.metadata["Detector"] == "TGS"
-    @test s.metadata["Company"] == "NAIST"
+    @test s.metadata["Company"] == "Test Lab"
 
     # Value translation
     @test s.metadata["光源"] == "Standard light source"
@@ -151,7 +151,7 @@ end
     @test s.metadata["Laser wavelength"] == "532.05 nm"
     @test s.metadata["Accumulation"] == "2"
     @test s.metadata["CCD temperature"] == "-69.0 C"
-    @test s.metadata["Company"] == "奈良先端科学技術大学院大学"
+    @test s.metadata["Company"] == "Test Lab"
 end
 
 @testset "footer metadata (UV-Vis, tab-delimited, no ##### marker)" begin

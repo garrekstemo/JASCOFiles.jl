@@ -1,4 +1,4 @@
-TITLE,C1
+TITLE,Raman Test Sample
 DATA TYPE,RAMAN SPECTRUM
 ORIGIN,JASCO
 OWNER,
@@ -1039,11 +1039,11 @@ XYDATA
 
 ##### Extended Information
 [Comments]
-Sample name,C1
+Sample name,Raman Test Sample
 Comment,
 User,Garrek Stemo
 Division
-Company,ìﬁó«êÊí[â»äwãZèpëÂäwâ@ëÂäw
+Company,Test Lab
 
 [Detailed Information]
 Creation date,2024/11/05 15:23
@@ -1057,7 +1057,7 @@ Data points,1024
 
 [Measurement Information]
 Model Name,NRS-5100
-Serial Number,C008561420
+Serial Number,SN-0000002
 
 Measurement Date,2024/11/05 15:23
 
