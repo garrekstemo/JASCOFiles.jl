@@ -3,6 +3,7 @@ using JASCOFiles
 using Dates
 using Aqua
 using StringEncodings
+using Makie
 
 data_dir = joinpath(@__DIR__, "data")
 spectrum_file = joinpath(data_dir, "ftir_test.csv")
@@ -270,4 +271,68 @@ end
                                   "NANOMETERS", "TRANSMITTANCE_FRAC",
                                   [500.0], [0.5], Dict{String,Any}())
     @test transmittance_to_absorbance(landmark_frac; percent=false).y ≈ [-log10(0.5)]
+end
+
+@testset "axis labels" begin
+    ftir = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))
+    raman = JASCOSpectrum(joinpath(data_dir, "raman_test.csv"))
+    uvvis = JASCOSpectrum(joinpath(data_dir, "uvvis_test.csv"))
+
+    @test xlabel(ftir) == "Wavenumber (cm⁻¹)"
+    @test ylabel(ftir) == "Absorbance"
+
+    @test xlabel(raman) == "Raman shift (cm⁻¹)"
+    @test ylabel(raman) == "Intensity"
+
+    @test xlabel(uvvis) == "Wavelength (nm)"
+    @test ylabel(uvvis) == "Absorbance"
+
+    # Transmittance variants from the transforms
+    t = absorbance_to_transmittance(ftir)
+    @test ylabel(t) == "Transmittance (%)"
+    tf = absorbance_to_transmittance(ftir; percent=false)
+    @test ylabel(tf) == "Transmittance"
+
+    # Default-fallback file has xunits="cm-1", yunits="Abs"
+    malformed = JASCOSpectrum(joinpath(data_dir, "ftir_malformed.csv"))
+    @test xlabel(malformed) == "Wavenumber (cm⁻¹)"
+    @test ylabel(malformed) == "Absorbance"
+
+    # Unknown units fall back to title-casing the raw value
+    weird = JASCOSpectrum("x", DateTime(2000), "spec", "INFRARED SPECTRUM",
+                         "kelvin", "candelas", Float64[], Float64[], Dict{String,Any}())
+    @test xlabel(weird) == "Kelvin"
+    @test ylabel(weird) == "Candelas"
+end
+
+@testset "Makie extension" begin
+    s = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))
+
+    # convert_arguments trait method enables lines(s), scatter(s), lines!(ax, s)
+    @test Makie.convert_arguments(Makie.PointBased(), s) ==
+          Makie.convert_arguments(Makie.PointBased(), s.x, s.y)
+
+    # End-to-end: lines(s) and scatter(s) work without going through .x/.y
+    fap = Makie.lines(s)
+    @test fap isa Makie.FigureAxisPlot
+
+    # plot defaults: labels, title, xreversed for FTIR
+    fig, ax, plt = plot(s)
+    @test fig isa Makie.Figure
+    @test ax isa Makie.Axis
+    @test ax.xlabel[] == "Wavenumber (cm⁻¹)"
+    @test ax.ylabel[] == "Absorbance"
+    @test ax.title[] == s.title
+    @test ax.xreversed[] == true
+
+    # User `axis` NamedTuple overrides defaults
+    _, ax2, _ = plot(s; axis=(xreversed=false, title="custom"))
+    @test ax2.xreversed[] == false
+    @test ax2.title[] == "custom"
+
+    # Raman: no x-reversal
+    r = JASCOSpectrum(joinpath(data_dir, "raman_test.csv"))
+    _, axr, _ = plot(r)
+    @test axr.xreversed[] == false
+    @test axr.xlabel[] == "Raman shift (cm⁻¹)"
 end
