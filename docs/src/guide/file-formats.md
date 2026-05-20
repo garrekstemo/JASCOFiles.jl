@@ -8,18 +8,15 @@ CurrentModule = JASCOFiles
 All three instruments share the same basic layout, but they differ in delimiter, encoding habits, and which header fields they actually populate.
 This page documents what the parser expects, what it fills in when a field is missing, and the known limitations of the current implementation.
 
-For usage, see [Quick start](quickstart.md).
-
 ## Common structure
 
-Every supported JASCO file follows the same three-part layout:
+Every supported JASCO file follows this layout:
 
-1. A **header** of delimited `KEY<delim>VALUE` pairs (one per line).
-2. A literal `XYDATA` marker on its own line.
-3. A **data section** of delimited `x,y` pairs, one per line.
+1. A **header** of delimited `KEY<delim>VALUE` pairs, one per line.
+2. A **data section** of delimited `x,y` pairs, one per line.
+3. A **footer** of further `KEY<delim>VALUE` pairs (measurement settings, operator name, instrument serial number, etc.), separated from the data by a blank line.
 
-Some instruments also emit a **footer** of free-form metadata after the data block (measurement settings, operator name, etc.).
-The parser currently stops capturing metadata after `XYDATA`: any line in the data section that fails to parse as two floats is silently skipped, and footer metadata is **not** recorded. This is a known limitation — see [Footer metadata](#Footer-metadata) below.
+The parser captures both the header and the footer into `s.metadata`. See [Footer metadata](#Footer-metadata) below for the section markers it skips and the Japanese→English alias behavior.
 
 ## Per-instrument variants
 
@@ -28,14 +25,14 @@ The parser currently stops capturing metadata after `XYDATA`: any line in the da
 Comma-delimited. `DATA TYPE` is set to `INFRARED SPECTRUM` and `XUNITS` is typically `1/CM`.
 
 ```
-TITLE,                               # comma
-DATA TYPE,INFRARED SPECTRUM          # comma
-DATE,23/01/11                        # comma
-TIME,16:49:31                        # comma
-XUNITS,1/CM                          # comma
-YUNITS,ABSORBANCE                    # comma
+TITLE,
+DATA TYPE,INFRARED SPECTRUM
+DATE,23/01/11
+TIME,16:49:31
+XUNITS,1/CM
+YUNITS,ABSORBANCE
 XYDATA
-999.9101,0.572538                    # comma
+999.9101,0.572538
 ```
 
 ### Raman
@@ -43,40 +40,31 @@ XYDATA
 Also comma-delimited. `DATA TYPE` is `RAMAN SPECTRUM` and `XUNITS` is typically `1/CM` (Raman shift).
 
 ```
-TITLE,C1                             # comma
-DATA TYPE,RAMAN SPECTRUM             # comma
-DATE,24/11/05                        # comma
-XUNITS,1/CM                          # comma
-YUNITS,INTENSITY                     # comma
+TITLE,C1
+DATA TYPE,RAMAN SPECTRUM
+DATE,24/11/05
+XUNITS,1/CM
+YUNITS,INTENSITY
 XYDATA
-545.8049,199                         # comma
+545.8049,199
 ```
 
 ### UV-Vis (V-series, e.g. V-730)
 
-**Tab-delimited**, and — unlike FTIR and Raman — `DATA TYPE` is emitted **blank**. `XUNITS` is `NANOMETERS`.
+**Tab-delimited**, and `DATA TYPE` is emitted **blank**. `XUNITS` is `NANOMETERS`.
 
 ```
-TITLE<TAB>                           # tab
-DATA TYPE<TAB>                       # tab (empty value)
-DATE<TAB>26/02/12                    # tab
+TITLE<TAB>
+DATA TYPE<TAB>
+DATE<TAB>26/02/12
 SPECTROMETER/DATA SYSTEM<TAB>JASCO Corp., V-730, Rev. 1.00
-XUNITS<TAB>NANOMETERS                # tab
-YUNITS<TAB>ABSORBANCE                # tab
+XUNITS<TAB>NANOMETERS
+YUNITS<TAB>ABSORBANCE
 XYDATA
-1000<TAB>-0.0983645                  # tab
+1000<TAB>-0.0983645
 ```
 
 Because `DATA TYPE` is blank, UV-Vis files cannot be recognised by the string `"UV/VIS SPECTRUM"` alone — see [UV-Vis classification](#UV-Vis-classification) below.
-
-## Delimiter auto-detection
-
-The parser inspects the first non-empty line of the file:
-
-- If the line contains a tab, the delimiter is set to `'\t'`.
-- Otherwise, if it contains a comma, the delimiter is set to `','`.
-
-Detection runs on the raw line (before stripping) so that header rows with empty values — e.g. `TITLE\t` — still carry the trailing delimiter that identifies the format. The chosen delimiter is then used for every subsequent header and data line.
 
 ## Encoding
 
@@ -89,7 +77,7 @@ s = JASCOSpectrum("sample.csv"; encoding=enc"UTF-8")
 
 ## Metadata fields
 
-The header is stored verbatim in `s.metadata::Dict{String,Any}`. A handful of keys are also hoisted into dedicated struct fields:
+Header and footer entries are both stored in `s.metadata::Dict{String,Any}`. A handful of header keys are also given dedicated struct fields:
 
 | Header key                 | Struct field        | Notes                                              |
 |----------------------------|---------------------|----------------------------------------------------|
@@ -114,11 +102,11 @@ The following keys are common but are left in `s.metadata` only — they are not
 | `RESOLUTION`  | Instrument resolution (often blank)    |
 | `FIRSTY`, `MAXY`, `MINY` | Y summary statistics        |
 
-All values are stored as the raw `String` read from the file — the parser does not coerce them to numeric types.
+All values are stored as the raw `String` read from the file.
 
 ## Missing-field defaults
 
-To keep [`JASCOSpectrum`](@ref) concretely typed, missing header keys fall back to sentinel values rather than `missing`:
+To make every [`JASCOSpectrum`](@ref) field have a definite value, missing header keys fall back to placeholder values rather than `missing`:
 
 | Struct field      | Default when key is missing |
 |-------------------|-----------------------------|
@@ -135,8 +123,6 @@ Check `haskey(s.metadata, "RESOLUTION")` when you need to distinguish a genuinel
 
 JASCO writes `DATE` as `yy/mm/dd` and `TIME` as `HH:MM:SS`. The parser concatenates them and prepends `"20"` to form a four-digit year before parsing with `dateformat"yy/mm/ddTHH:MM:SS"`.
 
-This means the parser only handles files recorded between **2000-01-01 and 2099-12-31**. Files from earlier instruments, or any future file written after 2099, will fail the internal `DateTime` parse and fall back to `DateTime(2000)`. The fallback is silent — inspect `s.metadata["DATE"]` directly if you need the raw value.
-
 ## UV-Vis classification
 
 Because V-series UV-Vis exports leave `DATA TYPE` blank, a simple string compare against `"UV/VIS SPECTRUM"` is not enough. [`isuvvis`](@ref) uses a small heuristic:
@@ -151,15 +137,48 @@ The wavelength window is deliberately wider than the visible range so that UV-Vi
 
 ## Footer metadata
 
-Many JASCO exports append a second metadata block after the data section:
+JASCO exports include a second metadata block after the data section. The parser detects it by the **blank line** that separates it from the data, and captures every `KEY<delim>VALUE` row it finds there into `s.metadata` alongside the header keys.
 
-- Raman files often include acquisition settings like aperture diameter, rejection filter, and resolution grating.
-- V-730 UV-Vis files include a Japanese `[測定情報]` ("measurement information") section with sample name, operator, and the instrument serial number.
+Footer information:
 
-The parser currently **ignores everything after the `XYDATA` marker except valid `x,y` float pairs**. Any non-numeric line in the data section is silently skipped (via a caught `ArgumentError` on `parse(Float64, ...)`), so footer blocks do not raise errors but they also do not appear in `s.metadata`. If you need a footer value, reopen the file with the same encoding and read it yourself.
+- **FTIR** footers typically include detector type, integration count, resolution, apodization, zero-filling, scan speed, gain, aperture, and light source.
+- **Raman** footers often include acquisition settings like laser wavelength, laser power, grating, slit, objective lens, CCD temperature, and the rejection filter.
+- **V-series UV-Vis** footers include a `[測定情報]` ("measurement information") section with model name, serial number, photometric mode, bandwidth, response, scan speed, and light source, often followed by a `[付属品情報]` ("accessory information") section.
 
-## Japanese metadata
+### Section markers and decorations
 
-SHIFT-JIS decoding is the default because JASCO instruments sometimes emit keys in Japanese. The most common case is `機種名` ("model name"), which some exports use in place of `SPECTROMETER/DATA SYSTEM`. The parser looks up `機種名` first when populating `s.spectrometer`, and only falls back to the English key if the Japanese one is absent.
+Footer blocks frequently include bracketed section headers like `[測定情報]`, `[コメント情報]`, `[データ情報]`, and `[付属品情報]`. JASCO FTIR exports also prefix the footer with a literal `##### Extended Information` line. None of these decorations are stored — only the actual `KEY<delim>VALUE` rows are kept.
 
-Other Japanese keys (operator name, sample description, the `[測定情報]` footer block) are preserved verbatim in `s.metadata` when they appear in the header; they are not specially mapped to struct fields.
+### Japanese→English aliases
+
+JASCO FTIR and V-series UV-Vis exports use Japanese keys in the footer (e.g. `積算回数`, `光源`, `検出器`). By default the parser preserves the original Japanese key and adds an English-aliased entry resolving to the same value:
+
+```julia-repl
+julia> s = JASCOSpectrum("ftir.csv");
+
+julia> s.metadata["積算回数"]
+"16"
+
+julia> s.metadata["Accumulation"]
+"16"
+```
+
+A small set of Japanese values is also translated. For example, `光源 = 標準光源` becomes:
+
+```julia-repl
+julia> s.metadata["光源"]
+"Standard light source"
+
+julia> s.metadata["Light source"]
+"Standard light source"
+```
+
+Pass `translate=false` to disable both translations and keep only the originals:
+
+```julia
+s = JASCOSpectrum("ftir.csv"; translate=false)
+s.metadata["光源"]                   # "標準光源"
+haskey(s.metadata, "Light source")  # false
+```
+
+If you encounter a Japanese term that isn't yet mapped, a PR adding an entry is welcome.
