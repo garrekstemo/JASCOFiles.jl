@@ -12,7 +12,7 @@ JASCOFiles.jl reads the CSV files exported from JASCO spectrometers (FTIR, Raman
 
 The parser auto-detects the delimiter (comma for FTIR/Raman, tab for V-series UV-Vis) and decodes Japanese text encoding (SHIFT-JIS) by default, so the same `JASCOSpectrum(path)` call loads every file a JASCO instrument produces.
 
-The package is deliberately small so that it loads quickly. There is no analysis or plotting functionality, but some basic operations are included for convenience, like transforming between absorbance and transmittance using the same assumptions JASCO uses internally.
+The package is deliberately small so that it loads quickly. Some basic operations are included for convenience, like transforming between absorbance and transmittance, or plotting a spectrum in one line when Makie is loaded.
 
 ## Installation
 
@@ -103,18 +103,29 @@ ftir_only = filter(isftir, spectra)
 
 ## Plotting
 
-`s.x` and `s.y` are plain vectors, so any plotting package works. With Makie:
+With Makie loaded, you can plot a spectrum in one line:
 
 ```julia
-using CairoMakie
+using JASCOFiles, CairoMakie
 
 s = JASCOSpectrum("sample.csv")
-fig, ax, l = lines(s.x, s.y;
-    axis = (xlabel = s.xunits, ylabel = s.yunits, title = s.title))
+fig, ax, ln = plot(s)
 fig
 ```
 
-For FTIR and Raman spectra you can set `ax.xreversed = true` so that wavenumbers decrease to the right, matching the convention used by most instrument software.
+`plot(s)` fills in the axis labels and title from `s`, and reverses the x-axis for FTIR so wavenumbers decrease left-to-right (the convention used by most instrument software). Override any default via an `axis` NamedTuple; other keyword arguments are forwarded to Makie's `lines`:
+
+```julia
+plot(s; color = :tomato)
+plot(s; axis = (xreversed = false, title = "My sample"))
+```
+
+For full control, `s.x` and `s.y` are plain vectors, so any plotting package works. `xlabel(s)` and `ylabel(s)` produce nicely formatted labels (e.g. `"Wavenumber (cm⁻¹)"`, `"Transmittance (%)"`) for any library:
+
+```julia
+fig, ax, ln = lines(s.x, s.y;
+    axis = (xlabel = xlabel(s), ylabel = ylabel(s), title = s.title))
+```
 
 ## Issues and contributions
 

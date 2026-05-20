@@ -3,6 +3,7 @@ using JASCOFiles
 using Dates
 using Aqua
 using StringEncodings
+using Makie
 
 data_dir = joinpath(@__DIR__, "data")
 spectrum_file = joinpath(data_dir, "ftir_test.csv")
@@ -121,18 +122,18 @@ end
     # Original Japanese keys preserved
     @test s.metadata["積算回数"] == "16"
     @test s.metadata["検出器"] == "TGS"
-    @test s.metadata["会社"] == "NAIST"
+    @test s.metadata["会社"] == "Test Lab"
 
     # English alias keys added
     @test s.metadata["Accumulation"] == "16"
     @test s.metadata["Detector"] == "TGS"
-    @test s.metadata["Company"] == "NAIST"
+    @test s.metadata["Company"] == "Test Lab"
 
     # Value translation
     @test s.metadata["光源"] == "Standard light source"
     @test s.metadata["Light source"] == "Standard light source"
-    @test s.metadata["データタイプ"] == "Equally-spaced data"
-    @test s.metadata["Data array type"] == "Equally-spaced data"
+    @test s.metadata["データタイプ"] == "Linear data array"
+    @test s.metadata["Data array type"] == "Linear data array"
 
     # Header still intact
     @test s.metadata["DATA TYPE"] == "INFRARED SPECTRUM"
@@ -150,7 +151,43 @@ end
     @test s.metadata["Laser wavelength"] == "532.05 nm"
     @test s.metadata["Accumulation"] == "2"
     @test s.metadata["CCD temperature"] == "-69.0 C"
-    @test s.metadata["Company"] == "奈良先端科学技術大学院大学"
+    @test s.metadata["Company"] == "Test Lab"
+end
+
+@testset "footer metadata (Japanese Raman, NRS-5100)" begin
+    s = JASCOSpectrum(joinpath(data_dir, "raman_japanese_test.csv"))
+
+    # SPECTROMETER/DATA SYSTEM is blank in the header; spectrometer comes from
+    # the 機種名 footer key.
+    @test s.datatype == "RAMAN SPECTRUM"
+    @test s.spectrometer == "NRS-5100"
+
+    # Raman-specific keys translated to JASCO's English UI terms
+    @test s.metadata["励起波長"] == "532.05 nm"
+    @test s.metadata["Laser wavelength"] == "532.05 nm"
+
+    @test s.metadata["レーザー強度"] == "0.7 mW"
+    @test s.metadata["Laser power"] == "0.7 mW"
+
+    @test s.metadata["対物レンズ"] == "MPLFLN 100 x"
+    @test s.metadata["Objective lens"] == "MPLFLN 100 x"
+
+    @test s.metadata["CCD温度"] == "-69.0 C"
+    @test s.metadata["CCD temperature"] == "-69.0 C"
+
+    @test s.metadata["ビニング上限"] == "90"
+    @test s.metadata["Binning Upper"] == "90"
+
+    # Updated key aliases (used to be Measurer/Affiliation)
+    @test s.metadata["測定者"] == "Test User"
+    @test s.metadata["User"] == "Test User"
+
+    # Value translations
+    @test s.metadata["分光器"] == "Single"          # シングル → Single
+    @test s.metadata["Monochromator"] == "Single"
+
+    @test s.metadata["データタイプ"] == "Non-linear data array"
+    @test s.metadata["Data array type"] == "Non-linear data array"
 end
 
 @testset "footer metadata (UV-Vis, tab-delimited, no ##### marker)" begin
@@ -270,4 +307,68 @@ end
                                   "NANOMETERS", "TRANSMITTANCE_FRAC",
                                   [500.0], [0.5], Dict{String,Any}())
     @test transmittance_to_absorbance(landmark_frac; percent=false).y ≈ [-log10(0.5)]
+end
+
+@testset "axis labels" begin
+    ftir = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))
+    raman = JASCOSpectrum(joinpath(data_dir, "raman_test.csv"))
+    uvvis = JASCOSpectrum(joinpath(data_dir, "uvvis_test.csv"))
+
+    @test xlabel(ftir) == "Wavenumber (cm⁻¹)"
+    @test ylabel(ftir) == "Absorbance"
+
+    @test xlabel(raman) == "Raman shift (cm⁻¹)"
+    @test ylabel(raman) == "Intensity"
+
+    @test xlabel(uvvis) == "Wavelength (nm)"
+    @test ylabel(uvvis) == "Absorbance"
+
+    # Transmittance variants from the transforms
+    t = absorbance_to_transmittance(ftir)
+    @test ylabel(t) == "Transmittance (%)"
+    tf = absorbance_to_transmittance(ftir; percent=false)
+    @test ylabel(tf) == "Transmittance"
+
+    # Default-fallback file has xunits="cm-1", yunits="Abs"
+    malformed = JASCOSpectrum(joinpath(data_dir, "ftir_malformed.csv"))
+    @test xlabel(malformed) == "Wavenumber (cm⁻¹)"
+    @test ylabel(malformed) == "Absorbance"
+
+    # Unknown units fall back to title-casing the raw value
+    weird = JASCOSpectrum("x", DateTime(2000), "spec", "INFRARED SPECTRUM",
+                         "kelvin", "candelas", Float64[], Float64[], Dict{String,Any}())
+    @test xlabel(weird) == "Kelvin"
+    @test ylabel(weird) == "Candelas"
+end
+
+@testset "Makie extension" begin
+    s = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))
+
+    # convert_arguments trait method enables lines(s), scatter(s), lines!(ax, s)
+    @test Makie.convert_arguments(Makie.PointBased(), s) ==
+          Makie.convert_arguments(Makie.PointBased(), s.x, s.y)
+
+    # End-to-end: lines(s) and scatter(s) work without going through .x/.y
+    fap = Makie.lines(s)
+    @test fap isa Makie.FigureAxisPlot
+
+    # plot defaults: labels, title, xreversed for FTIR
+    fig, ax, plt = plot(s)
+    @test fig isa Makie.Figure
+    @test ax isa Makie.Axis
+    @test ax.xlabel[] == "Wavenumber (cm⁻¹)"
+    @test ax.ylabel[] == "Absorbance"
+    @test ax.title[] == s.title
+    @test ax.xreversed[] == true
+
+    # User `axis` NamedTuple overrides defaults
+    _, ax2, _ = plot(s; axis=(xreversed=false, title="custom"))
+    @test ax2.xreversed[] == false
+    @test ax2.title[] == "custom"
+
+    # Raman: no x-reversal
+    r = JASCOSpectrum(joinpath(data_dir, "raman_test.csv"))
+    _, axr, _ = plot(r)
+    @test axr.xreversed[] == false
+    @test axr.xlabel[] == "Raman shift (cm⁻¹)"
 end
