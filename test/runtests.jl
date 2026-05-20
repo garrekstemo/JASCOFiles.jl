@@ -238,3 +238,36 @@ end
     @test default_call.title == explicit_call.title
     @test default_call.x == explicit_call.x
 end
+
+@testset "transmittance ↔ absorbance" begin
+    s = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))  # ABSORBANCE
+
+    # Percent round-trip from absorbance and back
+    t = absorbance_to_transmittance(s)
+    @test t.yunits == "TRANSMITTANCE"
+    @test t.x === s.x
+    @test t.metadata === s.metadata
+    @test t.title == s.title
+    a = transmittance_to_absorbance(t)
+    @test a.yunits == "ABS"
+    @test a.y ≈ s.y atol=1e-12
+
+    # Fractional round-trip
+    tf = absorbance_to_transmittance(s; percent=false)
+    @test tf.yunits == "TRANSMITTANCE_FRAC"
+    af = transmittance_to_absorbance(tf; percent=false)
+    @test af.yunits == "ABS"
+    @test af.y ≈ s.y atol=1e-12
+
+    # Known landmark: T=10% → A=1, T=1% → A=2
+    landmark = JASCOSpectrum("t", DateTime(2024), "test", "UV/VIS SPECTRUM",
+                             "NANOMETERS", "TRANSMITTANCE",
+                             [500.0, 600.0], [10.0, 1.0], Dict{String,Any}())
+    @test transmittance_to_absorbance(landmark).y ≈ [1.0, 2.0]
+
+    # Fractional landmark: T=0.5 → A ≈ 0.30103
+    landmark_frac = JASCOSpectrum("t", DateTime(2024), "test", "UV/VIS SPECTRUM",
+                                  "NANOMETERS", "TRANSMITTANCE_FRAC",
+                                  [500.0], [0.5], Dict{String,Any}())
+    @test transmittance_to_absorbance(landmark_frac; percent=false).y ≈ [-log10(0.5)]
+end

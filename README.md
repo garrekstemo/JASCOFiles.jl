@@ -38,9 +38,26 @@ isftir(s)   # true if FTIR spectrum
 israman(s)  # true if Raman spectrum
 isuvvis(s)  # true if UV-Vis spectrum
 
-# All metadata from the file header
+# All metadata from header and footer
 s.metadata["NPOINTS"]
 s.metadata["FIRSTX"]
+```
+
+## Convenience
+
+```julia
+# Convert between transmittance and absorbance (JASCO's percent-T convention)
+t = absorbance_to_transmittance(s)   # yunits → "TRANSMITTANCE"
+a = transmittance_to_absorbance(t)   # yunits → "ABS", round-trips back
+
+# Footer keys with Japanese names are also accessible via English aliases
+s.metadata["積算回数"]       # "16"
+s.metadata["Accumulation"]  # "16"
+s.metadata["光源"]           # "Standard light source"
+s.metadata["Light source"]  # "Standard light source"
+
+# Opt out of footer translation
+JASCOSpectrum(path; translate=false)
 ```
 
 ## Supported Instruments
