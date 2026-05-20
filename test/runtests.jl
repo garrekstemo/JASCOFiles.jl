@@ -132,8 +132,8 @@ end
     # Value translation
     @test s.metadata["光源"] == "Standard light source"
     @test s.metadata["Light source"] == "Standard light source"
-    @test s.metadata["データタイプ"] == "Equally-spaced data"
-    @test s.metadata["Data array type"] == "Equally-spaced data"
+    @test s.metadata["データタイプ"] == "Linear data array"
+    @test s.metadata["Data array type"] == "Linear data array"
 
     # Header still intact
     @test s.metadata["DATA TYPE"] == "INFRARED SPECTRUM"
@@ -152,6 +152,42 @@ end
     @test s.metadata["Accumulation"] == "2"
     @test s.metadata["CCD temperature"] == "-69.0 C"
     @test s.metadata["Company"] == "Test Lab"
+end
+
+@testset "footer metadata (Japanese Raman, NRS-5100)" begin
+    s = JASCOSpectrum(joinpath(data_dir, "raman_japanese_test.csv"))
+
+    # SPECTROMETER/DATA SYSTEM is blank in the header; spectrometer comes from
+    # the 機種名 footer key.
+    @test s.datatype == "RAMAN SPECTRUM"
+    @test s.spectrometer == "NRS-5100"
+
+    # Raman-specific keys translated to JASCO's English UI terms
+    @test s.metadata["励起波長"] == "532.05 nm"
+    @test s.metadata["Laser wavelength"] == "532.05 nm"
+
+    @test s.metadata["レーザー強度"] == "0.7 mW"
+    @test s.metadata["Laser power"] == "0.7 mW"
+
+    @test s.metadata["対物レンズ"] == "MPLFLN 100 x"
+    @test s.metadata["Objective lens"] == "MPLFLN 100 x"
+
+    @test s.metadata["CCD温度"] == "-69.0 C"
+    @test s.metadata["CCD temperature"] == "-69.0 C"
+
+    @test s.metadata["ビニング上限"] == "90"
+    @test s.metadata["Binning Upper"] == "90"
+
+    # Updated key aliases (used to be Measurer/Affiliation)
+    @test s.metadata["測定者"] == "Test User"
+    @test s.metadata["User"] == "Test User"
+
+    # Value translations
+    @test s.metadata["分光器"] == "Single"          # シングル → Single
+    @test s.metadata["Monochromator"] == "Single"
+
+    @test s.metadata["データタイプ"] == "Non-linear data array"
+    @test s.metadata["Data array type"] == "Non-linear data array"
 end
 
 @testset "footer metadata (UV-Vis, tab-delimited, no ##### marker)" begin
