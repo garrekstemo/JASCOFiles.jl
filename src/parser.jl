@@ -1,14 +1,24 @@
-function JASCOSpectrum(path::AbstractString; encoding=enc"SHIFT-JIS")
+function JASCOSpectrum(path::AbstractString; encoding=enc"SHIFT-JIS", translate::Bool=true)
     raw_metadata = Dict{String,Any}()
     xdata, ydata = Float64[], Float64[]
     is_data_section = false
+    in_footer = false
     delim = ','
     delim_detected = false
 
     # Using the standard StringEncodings block pattern
     open(path, encoding) do f
         for raw_line in eachline(f)
-            isempty(strip(raw_line)) && continue
+            stripped = strip(raw_line)
+
+            # A blank line after data has started flips us into footer mode;
+            # before data starts (or once already in footer), blanks are skipped.
+            if isempty(stripped)
+                if is_data_section && !in_footer
+                    in_footer = true
+                end
+                continue
+            end
 
             # JASCO FTIR/Raman files use commas; V-series UV-Vis uses tabs.
             # Detect on the raw line so trailing delimiters (e.g. empty-value
@@ -23,13 +33,34 @@ function JASCOSpectrum(path::AbstractString; encoding=enc"SHIFT-JIS")
                 end
             end
 
-            if strip(raw_line) == "XYDATA"
+            if stripped == "XYDATA"
                 is_data_section = true
                 continue
             end
 
             parts = split(raw_line, delim)
-            if is_data_section
+
+            if in_footer
+                # Section markers like "[測定情報]" and the FTIR/Raman
+                # "##### Extended Information" decoration are not stored.
+                startswith(stripped, '[') && continue
+                stripped == "##### Extended Information" && continue
+
+                length(parts) >= 1 || continue
+                key = strip(parts[1])
+                isempty(key) && continue
+                value = length(parts) >= 2 ? strip(join(parts[2:end], delim)) : ""
+
+                if translate
+                    translated_value = get(JAPANESE_VALUE_TRANSLATIONS, value, value)
+                    raw_metadata[key] = translated_value
+                    if haskey(JAPANESE_KEY_TRANSLATIONS, key)
+                        raw_metadata[JAPANESE_KEY_TRANSLATIONS[key]] = translated_value
+                    end
+                else
+                    raw_metadata[key] = value
+                end
+            elseif is_data_section
                 if length(parts) >= 2
                     try
                         x_val = parse(Float64, strip(parts[1]))
@@ -48,8 +79,11 @@ function JASCOSpectrum(path::AbstractString; encoding=enc"SHIFT-JIS")
         end
     end
 
-    # Mapping
-    spec_name = get(raw_metadata, "機種名", get(raw_metadata, "SPECTROMETER/DATA SYSTEM", "Unknown"))
+    # Mapping. Prefer the descriptive header field when non-empty; only fall
+    # back to the footer's "機種名" (model name) when the header field is
+    # missing or empty.
+    header_spec = get(raw_metadata, "SPECTROMETER/DATA SYSTEM", "")
+    spec_name = isempty(header_spec) ? get(raw_metadata, "機種名", "Unknown") : header_spec
 
     dt = DateTime(2000)
     if haskey(raw_metadata, "DATE") && haskey(raw_metadata, "TIME")

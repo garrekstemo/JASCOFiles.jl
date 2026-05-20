@@ -115,6 +115,69 @@ end
     @test s.date == DateTime(2026, 2, 12, 12, 23, 0)
 end
 
+@testset "footer metadata (FTIR)" begin
+    s = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))
+
+    # Original Japanese keys preserved
+    @test s.metadata["積算回数"] == "16"
+    @test s.metadata["検出器"] == "TGS"
+    @test s.metadata["会社"] == "NAIST"
+
+    # English alias keys added
+    @test s.metadata["Accumulation"] == "16"
+    @test s.metadata["Detector"] == "TGS"
+    @test s.metadata["Company"] == "NAIST"
+
+    # Value translation
+    @test s.metadata["光源"] == "Standard light source"
+    @test s.metadata["Light source"] == "Standard light source"
+    @test s.metadata["データタイプ"] == "Equally-spaced data"
+    @test s.metadata["Data array type"] == "Equally-spaced data"
+
+    # Header still intact
+    @test s.metadata["DATA TYPE"] == "INFRARED SPECTRUM"
+
+    # Section markers and decorations are dropped, not stored
+    @test !haskey(s.metadata, "[測定情報]")
+    @test !haskey(s.metadata, "[コメント情報]")
+    @test !haskey(s.metadata, "[データ情報]")
+    @test !haskey(s.metadata, "##### Extended Information")
+end
+
+@testset "footer metadata (Raman, English fixture)" begin
+    s = JASCOSpectrum(joinpath(data_dir, "raman_test.csv"))
+
+    @test s.metadata["Laser wavelength"] == "532.05 nm"
+    @test s.metadata["Accumulation"] == "2"
+    @test s.metadata["CCD temperature"] == "-69.0 C"
+    @test s.metadata["Company"] == "奈良先端科学技術大学院大学"
+end
+
+@testset "footer metadata (UV-Vis, tab-delimited, no ##### marker)" begin
+    s = JASCOSpectrum(joinpath(data_dir, "uvvis_test.csv"))
+
+    # Value translation: 自動 → Automatic
+    @test s.metadata["光源"] == "Automatic"
+    @test s.metadata["Light source"] == "Automatic"
+
+    @test s.metadata["測光モード"] == "Abs"
+    @test s.metadata["Photometric mode"] == "Abs"
+    @test s.metadata["付属品名"] == "USE-753"
+    @test s.metadata["Accessory name"] == "USE-753"
+end
+
+@testset "footer metadata opt-out (translate=false)" begin
+    s = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"); translate=false)
+
+    # Originals preserved, values left raw
+    @test s.metadata["光源"] == "標準光源"
+    @test s.metadata["積算回数"] == "16"
+
+    # No English aliases added
+    @test !haskey(s.metadata, "Accumulation")
+    @test !haskey(s.metadata, "Light source")
+end
+
 @testset "type predicates" begin
     ftir = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))
     raman = JASCOSpectrum(joinpath(data_dir, "raman_test.csv"))
