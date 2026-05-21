@@ -43,7 +43,7 @@ s.metadata["TIME"]
 s.metadata["Accumulation"]
 ```
 
-## Convenience
+## Convenience features
 
 ```julia
 # Convert between transmittance and absorbance (JASCO's percent-T convention)
@@ -63,4 +63,6 @@ s.metadata["Light source"]  # "Standard light source"
 |------------|------------------|
 | FTIR | `"INFRARED SPECTRUM"` |
 | Raman | `"RAMAN SPECTRUM"` |
-| UV-Vis | `"UV/VIS SPECTRUM"` or blank |
+| UV-Vis | `"UV/VIS SPECTRUM"` |
+
+If you have a file from an instrument, firmware version, or file-format variant not covered above, please [open an issue or PR](https://github.com/garrekstemo/JASCOFiles.jl/issues) with a representative file attached.
