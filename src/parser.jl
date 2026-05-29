@@ -96,6 +96,28 @@ function JASCOSpectrum(path::AbstractString; encoding=enc"SHIFT-JIS", translate:
         end
     end
 
+    # Fail fast on structurally invalid input rather than returning an
+    # empty/defaulted spectrum. Each message names the file so callers
+    # iterating over many files learn which one is bad.
+    fname = basename(path)
+    if !is_data_section
+        throw(ArgumentError("$fname: no XYDATA section found; file does not appear to be a JASCO spectrum"))
+    end
+    # Defensive: cannot occur today (x and y are pushed as a pair above),
+    # but guards against future parser changes that add partial-push paths.
+    if length(xdata) != length(ydata)
+        throw(ArgumentError("$fname: parsed $(length(xdata)) x-values but $(length(ydata)) y-values"))
+    end
+    if isempty(xdata)
+        throw(ArgumentError("$fname: XYDATA section contains no parseable data points"))
+    end
+    if haskey(raw_metadata, "NPOINTS")
+        declared = tryparse(Int, strip(string(raw_metadata["NPOINTS"])))
+        if declared !== nothing && declared != length(xdata)
+            throw(ArgumentError("$fname: header declares NPOINTS=$declared but found $(length(xdata)) data points"))
+        end
+    end
+
     return JASCOSpectrum(
         get(raw_metadata, "TITLE", "Untitled"),
         dt,
