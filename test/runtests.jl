@@ -262,9 +262,9 @@ end
 
     # Invalid-input validation: the constructor must throw, not silently
     # return an empty/defaulted spectrum (see 2026-05-29 validation spec).
-    @test_throws ArgumentError JASCOSpectrum(joinpath(data_dir, "not_a_spectrum.csv"))
-    @test_throws ArgumentError JASCOSpectrum(joinpath(data_dir, "empty_xydata.csv"))
-    @test_throws ArgumentError JASCOSpectrum(joinpath(data_dir, "wrong_npoints.csv"))
+    @test_throws "no XYDATA section" JASCOSpectrum(joinpath(data_dir, "not_a_spectrum.csv"))
+    @test_throws "no parseable data points" JASCOSpectrum(joinpath(data_dir, "empty_xydata.csv"))
+    @test_throws "NPOINTS=512 but found 3" JASCOSpectrum(joinpath(data_dir, "wrong_npoints.csv"))
 end
 
 @testset "Japanese SHIFT-JIS header" begin

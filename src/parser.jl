@@ -103,6 +103,8 @@ function JASCOSpectrum(path::AbstractString; encoding=enc"SHIFT-JIS", translate:
     if !is_data_section
         throw(ArgumentError("$fname: no XYDATA section found; file does not appear to be a JASCO spectrum"))
     end
+    # Defensive: cannot occur today (x and y are pushed as a pair above),
+    # but guards against future parser changes that add partial-push paths.
     if length(xdata) != length(ydata)
         throw(ArgumentError("$fname: parsed $(length(xdata)) x-values but $(length(ydata)) y-values"))
     end
