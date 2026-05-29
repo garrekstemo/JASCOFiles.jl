@@ -259,6 +259,12 @@ end
 @testset "error paths" begin
     @test_throws SystemError JASCOSpectrum("this_file_does_not_exist.csv")
     @test JASCOSpectrum <: AbstractJASCOSpectrum
+
+    # Invalid-input validation: the constructor must throw, not silently
+    # return an empty/defaulted spectrum (see 2026-05-29 validation spec).
+    @test_throws ArgumentError JASCOSpectrum(joinpath(data_dir, "not_a_spectrum.csv"))
+    @test_throws ArgumentError JASCOSpectrum(joinpath(data_dir, "empty_xydata.csv"))
+    @test_throws ArgumentError JASCOSpectrum(joinpath(data_dir, "wrong_npoints.csv"))
 end
 
 @testset "Japanese SHIFT-JIS header" begin
