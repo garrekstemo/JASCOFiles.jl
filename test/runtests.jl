@@ -552,8 +552,37 @@ end
     badn[0x84+1:0x84+4] = reinterpret(UInt8, [htol(Int32(9))])
     @test_throws "inconsistent point count" JASCOSpectrum(write_jws(badn))
 
-    # Grid inconsistency: overwrite LASTX so the grid no longer matches NPOINTS
+    # A stale/mismatched stored LASTX is NOT an error: the x-axis is rebuilt
+    # from FIRSTX + DELTAX*(0:n-1), so the file decodes and x[end] is computed
+    # (real V-730 reflectance files do this — see uvvis_refl.jws below).
     badg = make_jws(npoints=4, firstx=1000.0, deltax=1.0)
     badg[0x90+1:0x90+8] = reinterpret(UInt8, [htol(Float64(9999.0))])
-    @test_throws "inconsistent with NPOINTS" JASCOSpectrum(write_jws(badg))
+    sg = JASCOSpectrum(write_jws(badg))
+    @test sg.x[end] == 1003.0
+    @test sg.metadata["LASTX"] == 1003.0
+end
+
+@testset "binary UV-Vis reflectance + single-beam" begin
+    # Reflectance: a real V-730 file whose stored LASTX (400) disagrees with its
+    # actual 11-point grid (700 -> 650 at -5 nm). Must decode, not throw.
+    r = JASCOSpectrum(joinpath(data_dir, "uvvis_refl.jws"))
+    @test r.yunits == "REFLECTANCE"
+    @test isuvvis(r)
+    @test length(r) == 11
+    @test r.x[1] == 700.0
+    @test r.x[end] == 650.0          # computed from FIRSTX + DELTAX*(n-1); stored LASTX (400) is stale
+    @test r.metadata["LASTX"] == 650.0
+
+    # Single-beam reference and sample channels both decode as INTENSITY,
+    # distinguished by the Channel metadata.
+    ref = JASCOSpectrum(joinpath(data_dir, "uvvis_sb_ref.jws"))
+    @test ref.yunits == "INTENSITY"
+    @test ref.metadata["Channel"] == "Reference"
+    @test length(ref) == 21
+    @test ref.x[1] == 700.0 && ref.x[end] == 600.0
+
+    samp = JASCOSpectrum(joinpath(data_dir, "uvvis_sb_sample.jws"))
+    @test samp.yunits == "INTENSITY"
+    @test samp.metadata["Channel"] == "Sample"
+    @test length(samp) == 21
 end
