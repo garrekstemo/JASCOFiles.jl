@@ -1,4 +1,12 @@
 function JASCOSpectrum(path::AbstractString; encoding=enc"SHIFT-JIS", translate::Bool=true)
+    ext = lowercase(splitext(path)[2])
+    if ext == ".jws" || ext == ".jrs"
+        return _read_jws(path; encoding=encoding)
+    end
+    return _read_jasco_csv(path; encoding=encoding, translate=translate)
+end
+
+function _read_jasco_csv(path::AbstractString; encoding=enc"SHIFT-JIS", translate::Bool=true)
     raw_metadata = Dict{String,Any}()
     xdata, ydata = Float64[], Float64[]
     is_data_section = false

@@ -1,6 +1,6 @@
 # JASCOFiles.jl
 
-Julia package for reading JASCO spectrometer CSV files.
+Julia package for reading JASCO spectrometer files: the CSV/text exports and the native binary `.jws` / `.jrs` files.
 
 ## Package Structure
 
@@ -8,17 +8,13 @@ Julia package for reading JASCO spectrometer CSV files.
 src/
 ├── JASCOFiles.jl    # Module definition and exports
 ├── types.jl         # AbstractJASCOSpectrum and JASCOSpectrum struct
-├── parser.jl        # File parsing logic
+├── parser.jl        # File parsing logic (CSV/text dispatcher + reader)
+├── binary.jl        # Native .jws/.jrs (SPECMAN/SPECIRM) binary reader
 └── utils.jl         # Base method extensions and type predicates
 
 test/
 ├── runtests.jl      # Test suite
-└── data/            # Test data files
-    ├── ftir_test.csv
-    ├── ftir_malformed.csv
-    ├── raman_test.csv
-    ├── raman_malformed.csv
-    └── uvvis_test.csv
+└── data/            # Test fixtures: CSV/text exports + native binary (.jws/.jrs)
 ```
 
 ## Type Hierarchy
@@ -41,7 +37,7 @@ end
 
 ## Public API
 
-- `JASCOSpectrum(path; encoding=enc"SHIFT-JIS", translate=true)` - Parse a JASCO CSV file
+- `JASCOSpectrum(path; encoding=enc"SHIFT-JIS", translate=true)` - Parse a JASCO file (CSV/text, or binary `.jws`/`.jrs`)
 - `isftir(s)` - Returns `true` if spectrum is FTIR
 - `israman(s)` - Returns `true` if spectrum is Raman
 - `isuvvis(s)` - Returns `true` if spectrum is UV-Vis
@@ -82,6 +78,7 @@ Encoding: SHIFT-JIS (Japanese character support)
 | FTIR | INFRARED SPECTRUM | comma | Implemented |
 | Raman | RAMAN SPECTRUM | comma | Implemented |
 | UV-Vis | UV/VIS SPECTRUM or blank (V-series) | tab or comma | Implemented |
+| FTIR/UV-Vis | (binary) | .jws / .jrs | Implemented (native) |
 
 The parser auto-detects the delimiter from the first header line. V-series
 UV-Vis files (e.g. V-730) use tab separators and leave `DATA TYPE` blank;

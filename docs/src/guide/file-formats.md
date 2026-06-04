@@ -66,6 +66,51 @@ XYDATA
 
 Because `DATA TYPE` is blank, UV-Vis files cannot be recognised by the string `"UV/VIS SPECTRUM"` alone — see [UV-Vis classification](#UV-Vis-classification) below.
 
+## Binary files (`.jws` / `.jrs`)
+
+`JASCOSpectrum(path)` also reads JASCO's native binary spectra directly (FTIR and
+UV-Vis). Two on-disk formats share one container (`SPECMAN R2.0.0`):
+
+- **`.jws`** — written by the desktop **Spectra Manager** software (header
+  stamped `SPECMAN`, `i80x86`, `MSVC`).
+- **`.jrs`** — the same spectrum written by the spectrometer's **onboard
+  firmware** (`SPECIRM`, `MCF5328`, `CodeWarrior`).
+
+The spectral data is identical between them; only the writer-provenance header
+fields differ. Both decode to the same `JASCOSpectrum`.
+
+Little-endian, fixed-offset header, then a trailing `Float32` data block:
+
+| Offset | Type | Field |
+|--------|------|-------|
+| `0x00` | char[4] | magic `"L~S "` |
+| `0x08` | str | format id (`SPECMAN` / `SPECIRM`) |
+| `0x84` | Int32 | NPOINTS |
+| `0x88`/`0x90`/`0x98` | Float64 | FIRSTX / LASTX / DELTAX (signed) |
+| `0xA0` | UInt8 | x-unit code (`0` = cm⁻¹, `3` = nm) |
+| `0xA4` | UInt8 | y-mode code (see below) |
+| `0xC8` | Int64 | data-block length (= NPOINTS × 4) |
+| `0x140` | str | instrument model |
+| `0x160` | str | serial number |
+| `0x180` | str | title |
+| `0x2C0` | Int32 | acquisition time (Unix epoch, UTC) |
+| `filesize − len` … EOF | Float32[NPOINTS] | y-data |
+
+`datatype` and `xunits` are decoded from the instrument model (`FT/IR…` →
+infrared/`1/CM`; `V-…` → UV-Vis/`NANOMETERS`, with `DATA TYPE` left blank to
+match the V-series text export). `yunits` is decoded from the y-mode code:
+
+| `0xA4` | `YUNITS` |
+|--------|----------|
+| `0x00` | TRANSMITTANCE |
+| `0x02` | REFLECTANCE |
+| `0x03` | ABSORBANCE |
+| `0x09` / `0x0a` | INTENSITY (single-beam reference / sample) |
+
+Unsupported instruments (e.g. Raman NRS) and unknown y-mode codes throw an
+`ArgumentError` naming the file. Timestamps decode as UTC (the stored epoch),
+unlike the CSV path which records local time.
+
 ## Encoding
 
 The default encoding is **SHIFT-JIS**, which is what JASCO instruments emit natively. This is necessary for the Japanese metadata keys that appear in some exports, such as `機種名` ("model name"). Pass any `StringEncodings.Encoding` via the `encoding` keyword to override:
