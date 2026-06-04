@@ -8,7 +8,8 @@ Julia package for reading JASCO spectrometer CSV files.
 src/
 ├── JASCOFiles.jl    # Module definition and exports
 ├── types.jl         # AbstractJASCOSpectrum and JASCOSpectrum struct
-├── parser.jl        # File parsing logic
+├── parser.jl        # File parsing logic (CSV/text dispatcher + reader)
+├── binary.jl        # Native .jws/.jrs (SPECMAN/SPECIRM) binary reader
 └── utils.jl         # Base method extensions and type predicates
 
 test/
@@ -82,6 +83,7 @@ Encoding: SHIFT-JIS (Japanese character support)
 | FTIR | INFRARED SPECTRUM | comma | Implemented |
 | Raman | RAMAN SPECTRUM | comma | Implemented |
 | UV-Vis | UV/VIS SPECTRUM or blank (V-series) | tab or comma | Implemented |
+| FTIR/UV-Vis | (binary) | .jws / .jrs | Implemented (native) |
 
 The parser auto-detects the delimiter from the first header line. V-series
 UV-Vis files (e.g. V-730) use tab separators and leave `DATA TYPE` blank;

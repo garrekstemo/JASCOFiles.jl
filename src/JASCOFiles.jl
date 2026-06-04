@@ -1,10 +1,10 @@
 """
     JASCOFiles
 
-Read CSV files exported from JASCO spectrometers (FTIR, Raman, UV-Vis) into a
-concrete [`JASCOSpectrum`](@ref) struct. The parser auto-detects the delimiter
-(comma for FTIR/Raman, tab for V-series UV-Vis) and decodes SHIFT-JIS metadata
-by default.
+Read JASCO spectrometer files into a concrete [`JASCOSpectrum`](@ref) struct:
+the CSV/text exports (FTIR, Raman, UV-Vis; delimiter auto-detected, SHIFT-JIS
+by default) and the native binary `.jws` (SPECMAN) and `.jrs` (SPECIRM) files
+for FTIR and UV-Vis. `JASCOSpectrum(path)` dispatches on the file extension.
 
 Call [`JASCOSpectrum`](@ref)`(path)` to read a file, then access `.x`, `.y`,
 `.xunits`, `.yunits`, `.datatype`, and `.metadata` on the result. Use

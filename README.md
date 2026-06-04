@@ -6,8 +6,13 @@
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 [![license](https://img.shields.io/github/license/garrekstemo/JASCOFiles.jl)](LICENSE)
 
-JASCOFiles.jl reads CSV files exported from JASCO spectrometers (FTIR, Raman, UV-Vis).
-It does not read .jws files directly—export raw data to CSV from the JASCO software.
+JASCOFiles.jl reads JASCO spectrometer files (FTIR, Raman, UV-Vis): the CSV/text
+exports from Spectra Manager, and the native binary `.jws` / `.jrs` files
+(FTIR and UV-Vis) directly — no manual export step.
+
+`.jws` is written by the desktop Spectra Manager software; `.jrs` is the same
+spectrum as written by the spectrometer's onboard firmware. Both decode to the
+same `JASCOSpectrum`.
 
 ## Installation
 
@@ -25,6 +30,9 @@ using JASCOFiles
 
 # Load a spectrum (works for FTIR, Raman, or UV-Vis)
 s = JASCOSpectrum("path/to/spectrum.csv")
+
+# Native binary files work through the same entry point
+s = JASCOSpectrum("path/to/spectrum.jws")   # or .jrs
 
 # Access data
 s.x        # wavenumber or wavelength
