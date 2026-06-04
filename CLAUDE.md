@@ -1,6 +1,6 @@
 # JASCOFiles.jl
 
-Julia package for reading JASCO spectrometer CSV files.
+Julia package for reading JASCO spectrometer files: the CSV/text exports and the native binary `.jws` / `.jrs` files.
 
 ## Package Structure
 
@@ -14,12 +14,7 @@ src/
 
 test/
 ├── runtests.jl      # Test suite
-└── data/            # Test data files
-    ├── ftir_test.csv
-    ├── ftir_malformed.csv
-    ├── raman_test.csv
-    ├── raman_malformed.csv
-    └── uvvis_test.csv
+└── data/            # Test fixtures: CSV/text exports + native binary (.jws/.jrs)
 ```
 
 ## Type Hierarchy
@@ -42,7 +37,7 @@ end
 
 ## Public API
 
-- `JASCOSpectrum(path; encoding=enc"SHIFT-JIS", translate=true)` - Parse a JASCO CSV file
+- `JASCOSpectrum(path; encoding=enc"SHIFT-JIS", translate=true)` - Parse a JASCO file (CSV/text, or binary `.jws`/`.jrs`)
 - `isftir(s)` - Returns `true` if spectrum is FTIR
 - `israman(s)` - Returns `true` if spectrum is Raman
 - `isuvvis(s)` - Returns `true` if spectrum is UV-Vis
