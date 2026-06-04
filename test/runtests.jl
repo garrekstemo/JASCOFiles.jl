@@ -409,6 +409,19 @@ end
     @test Tables.getcolumn(rows[1], :y) == s.y[1]
 end
 
+@testset "binary dispatch via JASCOSpectrum(path)" begin
+    # Public entry point routes .jws to the binary reader.
+    s = JASCOSpectrum(joinpath(data_dir, "ftir_test.jws"))
+    @test isftir(s)
+    @test length(s) == 12447
+    @test s.datatype == "INFRARED SPECTRUM"
+
+    # Non-binary extensions still route to the CSV reader (regression).
+    csv = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))
+    @test isftir(csv)
+    @test csv.metadata["XUNITS"] == "1/CM"
+end
+
 @testset "binary _read_jws (FTIR absorbance)" begin
     s = JASCOFiles._read_jws(joinpath(data_dir, "ftir_test.jws"))
     @test s.spectrometer == "FT/IR-4600typeA"
