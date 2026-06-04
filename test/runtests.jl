@@ -9,6 +9,36 @@ using Tables
 data_dir = joinpath(@__DIR__, "data")
 spectrum_file = joinpath(data_dir, "ftir_test.csv")
 
+# 1-based byte range for a string field at 0-based offset `off`.
+OFFW(off, s) = (off+1):(off+length(s))
+
+# Build a minimal valid SPECMAN/SPECIRM byte vector for error-path tests.
+function make_jws(; id="SPECMAN", instrument="FT/IR-4600typeA",
+                    xunit=0x00, ymode=0x03, npoints=4,
+                    firstx=1000.0, deltax=1.0)
+    n = 0x740 + npoints * 4
+    b = zeros(UInt8, n)
+    b[1:4] = collect(b"L~S ")
+    b[OFFW(0x08, id)] = Vector{UInt8}(id)
+    b[OFFW(0x20, "R2.0.0")] = Vector{UInt8}("R2.0.0")
+    b[0x84+1:0x84+4] = reinterpret(UInt8, [htol(Int32(npoints))])
+    b[0x88+1:0x88+8] = reinterpret(UInt8, [htol(Float64(firstx))])
+    b[0x90+1:0x90+8] = reinterpret(UInt8, [htol(Float64(firstx + deltax * (npoints - 1)))])
+    b[0x98+1:0x98+8] = reinterpret(UInt8, [htol(Float64(deltax))])
+    b[0xA0+1] = xunit
+    b[0xA1+1] = 0x01; b[0xA2+1] = 0x00; b[0xA3+1] = 0x10
+    b[0xA4+1] = ymode
+    b[0xC8+1:0xC8+8] = reinterpret(UInt8, [htol(Int64(npoints * 4))])
+    b[OFFW(0x140, instrument)] = Vector{UInt8}(instrument)
+    return b
+end
+
+function write_jws(bytes)
+    path = tempname() * ".jws"
+    write(path, bytes)
+    return path
+end
+
 @testset "Code quality (Aqua.jl)" begin
     Aqua.test_all(JASCOFiles; deps_compat=(check_extras=false, ignore=[:Dates],))
 end
@@ -469,4 +499,41 @@ end
     @test jrs.yunits == jws.yunits
     @test startswith(jrs.metadata["Format"], "SPECIRM")
     @test isuvvis(jrs)
+end
+
+@testset "binary error paths" begin
+    # A baseline make_jws() file is valid and parses.
+    @test JASCOSpectrum(write_jws(make_jws())) isa JASCOSpectrum
+
+    # Too small
+    @test_throws "too short" JASCOSpectrum(write_jws(make_jws()[1:200]))
+
+    # Bad magic
+    bad = make_jws(); bad[1] = 0x00
+    @test_throws "missing 'L~S '" JASCOSpectrum(write_jws(bad))
+
+    # Unrecognized container id
+    @test_throws "unrecognized binary variant" JASCOSpectrum(write_jws(make_jws(id="FOOBAR")))
+
+    # Unsupported instrument
+    @test_throws "unsupported instrument" JASCOSpectrum(write_jws(make_jws(instrument="NRS-5100")))
+
+    # x-unit / instrument mismatch (FTIR but nm code)
+    @test_throws "x-unit code" JASCOSpectrum(write_jws(make_jws(xunit=0x03)))
+
+    # Unknown y-mode code
+    @test_throws "unrecognized y-mode" JASCOSpectrum(write_jws(make_jws(ymode=0x07)))
+
+    # Invalid DELTAX (zero) -> hardened gate 8 guard
+    @test_throws "invalid DELTAX" JASCOSpectrum(write_jws(make_jws(deltax=0.0)))
+
+    # NPOINTS / data-length mismatch: overwrite NPOINTS so it disagrees with datalen
+    badn = make_jws(npoints=4)
+    badn[0x84+1:0x84+4] = reinterpret(UInt8, [htol(Int32(9))])
+    @test_throws "inconsistent point count" JASCOSpectrum(write_jws(badn))
+
+    # Grid inconsistency: overwrite LASTX so the grid no longer matches NPOINTS
+    badg = make_jws(npoints=4, firstx=1000.0, deltax=1.0)
+    badg[0x90+1:0x90+8] = reinterpret(UInt8, [htol(Float64(9999.0))])
+    @test_throws "inconsistent with NPOINTS" JASCOSpectrum(write_jws(badg))
 end
