@@ -87,17 +87,17 @@ Little-endian, fixed-offset header, then a trailing `Float32` data block:
 | `0x08` | str | format id (`SPECMAN` / `SPECIRM`) |
 | `0x84` | Int32 | NPOINTS |
 | `0x88`/`0x90`/`0x98` | Float64 | FIRSTX / LASTX / DELTAX (signed) |
-| `0xA0` | UInt8 | x-unit code (`0` = cm-1, `3` = nm) |
+| `0xA0` | UInt8 | x-unit code (`0` = cm⁻¹, `3` = nm) |
 | `0xA4` | UInt8 | y-mode code (see below) |
-| `0xC8` | Int64 | data-block length (= NPOINTS x 4) |
+| `0xC8` | Int64 | data-block length (= NPOINTS × 4) |
 | `0x140` | str | instrument model |
 | `0x160` | str | serial number |
 | `0x180` | str | title |
 | `0x2C0` | Int32 | acquisition time (Unix epoch, UTC) |
-| `filesize - len` ... EOF | Float32[NPOINTS] | y-data |
+| `filesize − len` … EOF | Float32[NPOINTS] | y-data |
 
-`datatype` and `xunits` are decoded from the instrument model (`FT/IR...` ->
-infrared/`1/CM`; `V-...` -> UV-Vis/`NANOMETERS`, with `DATA TYPE` left blank to
+`datatype` and `xunits` are decoded from the instrument model (`FT/IR…` →
+infrared/`1/CM`; `V-…` → UV-Vis/`NANOMETERS`, with `DATA TYPE` left blank to
 match the V-series text export). `yunits` is decoded from the y-mode code:
 
 | `0xA4` | `YUNITS` |
