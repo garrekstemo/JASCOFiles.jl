@@ -19,6 +19,7 @@ using StringEncodings
 include("types.jl")
 include("translations.jl")
 include("parser.jl")
+include("binary.jl")
 include("utils.jl")
 include("transforms.jl")
 include("plotting.jl")

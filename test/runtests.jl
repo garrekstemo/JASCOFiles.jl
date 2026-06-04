@@ -408,3 +408,20 @@ end
     @test Tables.getcolumn(rows[1], :x) == s.x[1]
     @test Tables.getcolumn(rows[1], :y) == s.y[1]
 end
+
+@testset "binary _read_jws (FTIR absorbance)" begin
+    s = JASCOFiles._read_jws(joinpath(data_dir, "ftir_test.jws"))
+    @test s.spectrometer == "FT/IR-4600typeA"
+    @test s.datatype == "INFRARED SPECTRUM"
+    @test s.xunits == "1/CM"
+    @test s.yunits == "ABSORBANCE"
+    @test length(s) == 12447
+    @test round(s.x[1], digits=4) == 999.9101
+    @test round(s.x[end], digits=3) == 7000.335
+    @test round(s.y[1], sigdigits=3) ≈ 0.0188
+    @test s.metadata["Serial Number"] == "E137161786"
+    @test s.metadata["NPOINTS"] == 12447
+    @test startswith(s.metadata["Format"], "SPECMAN")
+    @test s.date == DateTime(2026, 6, 4, 4, 54, 3)
+    @test isftir(s)
+end
