@@ -501,6 +501,26 @@ end
     @test isuvvis(jrs)
 end
 
+@testset "binary vs .txt ground truth (UV-Vis abs)" begin
+    bin = JASCOSpectrum(joinpath(data_dir, "uvvis_abs.jws"))
+    txt = JASCOSpectrum(joinpath(data_dir, "uvvis_abs.txt"))  # routes to CSV/tab reader
+
+    # Same shape and grid.
+    @test length(bin) == length(txt)
+    @test bin.x ≈ txt.x
+
+    # Values agree to the text export's displayed precision (~6 sig figs).
+    @test all(isapprox.(bin.y, txt.y; atol=1e-6, rtol=1e-4))
+
+    # Source parity: the binary reader reproduces the export's units/datatype.
+    @test bin.datatype == txt.datatype   # both "" for V-730
+    @test bin.xunits == txt.xunits        # NANOMETERS
+    @test bin.yunits == txt.yunits        # ABSORBANCE
+    @test isuvvis(bin) == isuvvis(txt) == true
+    @test xlabel(bin) == xlabel(txt)
+    @test ylabel(bin) == ylabel(txt)
+end
+
 @testset "binary error paths" begin
     # A baseline make_jws() file is valid and parses.
     @test JASCOSpectrum(write_jws(make_jws())) isa JASCOSpectrum
