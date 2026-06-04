@@ -19,7 +19,9 @@ const OFF_NPOINTS    = 0x84
 const OFF_FIRSTX     = 0x88
 const OFF_LASTX      = 0x90
 const OFF_DELTAX     = 0x98
-const OFF_XUNIT      = 0xA0   # +1=01 +2=00 +3=10 +4=y-mode +5..+7=00 (0-based 0xA1..0xA7)
+const OFF_XUNIT      = 0xA0   # descriptor tag at 0-based 0xA0..0xA7:
+#                               0xA0 x-unit code; 0xA1..0xA3 = 01 00 10;
+#                               0xA4 y-mode code; 0xA5..0xA7 = 00 00 00
 const OFF_YMODE      = 0xA4
 const OFF_DATALEN    = 0xC8
 const OFF_INSTRUMENT = 0x140
@@ -114,15 +116,20 @@ function _read_jws(path::AbstractString; encoding=enc"SHIFT-JIS")
     lastx  = read_le(Float64, bytes, OFF_LASTX)
     deltax = read_le(Float64, bytes, OFF_DELTAX)
 
-    # 8. grid consistency
-    round(Int, (lastx - firstx) / deltax) + 1 == npoints ||
+    # 8. grid consistency: DELTAX must be usable, and the computed endpoint
+    # (firstx + deltax*(npoints-1)) must match the stored LASTX within half a
+    # step. Formulated without round(Int, …) so a corrupt header throws a clean
+    # ArgumentError rather than InexactError on a zero/NaN/overflowing quotient.
+    (isfinite(deltax) && deltax != 0) ||
+        throw(ArgumentError("$fname: invalid DELTAX=$deltax"))
+    isapprox(firstx + deltax * (npoints - 1), lastx; atol=abs(deltax) / 2) ||
         throw(ArgumentError("$fname: x-grid (FIRSTX=$firstx, LASTX=$lastx, DELTAX=$deltax) inconsistent with NPOINTS=$npoints"))
 
     doff = n - datalen
     y = Float64.(ltoh.(reinterpret(Float32, bytes[doff+1:n])))
     x = collect(firstx .+ deltax .* (0:npoints-1))
 
-    epoch = read_le(Int32, bytes, OFF_EPOCH)
+    epoch = read_le(Int32, bytes, OFF_EPOCH)   # Unix epoch, UTC (Int32 field -> year-2038 ceiling)
     date = epoch > 0 ? unix2datetime(epoch) : DateTime(2000)
 
     serial  = read_cstr(bytes, OFF_SERIAL, 32, encoding)
