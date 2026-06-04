@@ -113,17 +113,17 @@ function _read_jws(path::AbstractString; encoding=enc"SHIFT-JIS")
         throw(ArgumentError("$fname: inconsistent point count (NPOINTS=$npoints, data=$datalen bytes, file=$n bytes)"))
 
     firstx = read_le(Float64, bytes, OFF_FIRSTX)
-    lastx  = read_le(Float64, bytes, OFF_LASTX)
     deltax = read_le(Float64, bytes, OFF_DELTAX)
 
-    # 8. grid consistency: DELTAX must be usable, and the computed endpoint
-    # (firstx + deltax*(npoints-1)) must match the stored LASTX within half a
-    # step. Formulated without round(Int, …) so a corrupt header throws a clean
-    # ArgumentError rather than InexactError on a zero/NaN/overflowing quotient.
+    # 8. DELTAX must be usable. The x-axis is reconstructed from
+    # FIRSTX + DELTAX*(0:npoints-1); the stored LASTX field (OFF_LASTX) is
+    # informational and is NOT a hard check — real files can store a LASTX that
+    # disagrees with the actual grid (e.g. a truncated V-730 reflectance scan
+    # that records the configured end but only a few acquired points). Using
+    # `isfinite(deltax) && deltax != 0` keeps a corrupt step from producing a
+    # NaN/Inf grid.
     (isfinite(deltax) && deltax != 0) ||
         throw(ArgumentError("$fname: invalid DELTAX=$deltax"))
-    isapprox(firstx + deltax * (npoints - 1), lastx; atol=abs(deltax) / 2) ||
-        throw(ArgumentError("$fname: x-grid (FIRSTX=$firstx, LASTX=$lastx, DELTAX=$deltax) inconsistent with NPOINTS=$npoints"))
 
     doff = n - datalen
     y = Float64.(ltoh.(reinterpret(Float32, bytes[doff+1:n])))
@@ -144,7 +144,7 @@ function _read_jws(path::AbstractString; encoding=enc"SHIFT-JIS")
         "XUNITS" => xunits,
         "YUNITS" => yunits,
         "FIRSTX" => firstx,
-        "LASTX" => lastx,
+        "LASTX" => last(x),
         "DELTAX" => deltax,
         "NPOINTS" => npoints,
         "Serial Number" => serial,

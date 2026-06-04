@@ -206,7 +206,12 @@ In order, first failure throws `ArgumentError`:
    `"<file>: unrecognized y-mode code 0x<NN>; please share this file"`.
 7. **Bad point count** — `NPOINTS ≤ 0`, `len(0xC8) != NPOINTS*4`, or
    `filesize - len < 0x300` (block would overlap the header) → throw.
-8. **Grid inconsistency** — `round((LASTX-FIRSTX)/DELTAX) + 1 != NPOINTS` → throw.
+8. **Invalid DELTAX** — `DELTAX` zero or non-finite → throw `"…: invalid DELTAX=<v>"`.
+   The x-axis is reconstructed from `FIRSTX + DELTAX·(0:NPOINTS−1)`; the stored
+   `LASTX` is **informational and not a hard check** — real files (e.g. a
+   truncated V-730 reflectance scan) can store a `LASTX` that disagrees with the
+   actual grid, so rejecting on it would be a false positive. `metadata["LASTX"]`
+   reports the computed endpoint (`last(x)`), which always matches the data.
 
 ## File structure
 
