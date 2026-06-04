@@ -438,3 +438,35 @@ end
     @test s.date == DateTime(2026, 6, 4, 4, 54, 3)
     @test isftir(s)
 end
+
+@testset "binary UV-Vis (V-730)" begin
+    a = JASCOSpectrum(joinpath(data_dir, "uvvis_abs.jws"))
+    @test a.spectrometer == "V-730"
+    @test a.datatype == ""              # V-series export omits DATA TYPE
+    @test a.xunits == "NANOMETERS"
+    @test a.yunits == "ABSORBANCE"
+    @test isuvvis(a)                    # inferred from NANOMETERS + range
+    @test !isftir(a)
+    @test length(a) == 61
+    @test a.x[1] == 700.0
+    @test a.x[end] == 400.0             # descending grid (DELTAX < 0)
+    @test round(a.y[1], sigdigits=4) ≈ -6.388e-5
+
+    t = JASCOSpectrum(joinpath(data_dir, "uvvis_trans.jws"))
+    @test t.yunits == "TRANSMITTANCE"
+    @test isuvvis(t)
+    @test all(>(90), t.y)               # blank-cell %T sits near 100
+end
+
+@testset "binary .jrs (SPECIRM) parity" begin
+    jws = JASCOSpectrum(joinpath(data_dir, "uvvis_abs.jws"))
+    jrs = JASCOSpectrum(joinpath(data_dir, "uvvis_abs.jrs"))
+    # Same measurement in the instrument-firmware format: identical data.
+    @test jrs.x == jws.x
+    @test jrs.y == jws.y
+    @test jrs.datatype == jws.datatype
+    @test jrs.xunits == jws.xunits
+    @test jrs.yunits == jws.yunits
+    @test startswith(jrs.metadata["Format"], "SPECIRM")
+    @test isuvvis(jrs)
+end
