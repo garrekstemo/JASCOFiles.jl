@@ -2,6 +2,7 @@ using Test
 using JASCOFiles
 using Dates
 using Aqua
+using Logging
 using StringEncodings
 using Makie
 using Tables
@@ -317,12 +318,12 @@ end
     s = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))  # ABSORBANCE
 
     # Percent round-trip from absorbance and back
-    t = absorbance_to_transmittance(s)
+    t = absorbance_to_transmittance(s; percent=true)
     @test t.yunits == "TRANSMITTANCE"
     @test t.x === s.x
     @test t.metadata === s.metadata
     @test t.title == s.title
-    a = transmittance_to_absorbance(t)
+    a = transmittance_to_absorbance(t; percent=true)
     @test a.yunits == "ABS"
     @test a.y ≈ s.y atol=1e-12
 
@@ -337,13 +338,41 @@ end
     landmark = JASCOSpectrum("t", DateTime(2024), "test", "UV/VIS SPECTRUM",
                              "NANOMETERS", "TRANSMITTANCE",
                              [500.0, 600.0], [10.0, 1.0], Dict{String,Any}())
-    @test transmittance_to_absorbance(landmark).y ≈ [1.0, 2.0]
+    @test transmittance_to_absorbance(landmark; percent=true).y ≈ [1.0, 2.0]
 
     # Fractional landmark: T=0.5 → A ≈ 0.30103
     landmark_frac = JASCOSpectrum("t", DateTime(2024), "test", "UV/VIS SPECTRUM",
                                   "NANOMETERS", "TRANSMITTANCE_FRAC",
                                   [500.0], [0.5], Dict{String,Any}())
     @test transmittance_to_absorbance(landmark_frac; percent=false).y ≈ [-log10(0.5)]
+end
+
+@testset "implicit percent default deprecation" begin
+    # JASCOFiles 1.x defaults to percent=true — the OPPOSITE of
+    # OpticalSpectroscopy.jl (percent=false). Relying on the implicit default
+    # must warn (once per session); explicit `percent` must stay silent and
+    # numerically unchanged. The default flips to percent=false in 2.0.
+    s = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))  # ABSORBANCE
+    t_pct = JASCOSpectrum("t", DateTime(2024), "test", "UV/VIS SPECTRUM",
+                          "NANOMETERS", "TRANSMITTANCE",
+                          [500.0, 600.0], [10.0, 1.0], Dict{String,Any}())
+
+    # Implicit default warns (each @test_logs uses a fresh logger, so
+    # maxlog=1 does not suppress across these assertions)
+    a_implicit = @test_logs (:warn, r"percent") transmittance_to_absorbance(t_pct)
+    t_implicit = @test_logs (:warn, r"percent") absorbance_to_transmittance(s)
+
+    # Explicit percent (either value) is silent
+    a_explicit = @test_logs min_level=Logging.Warn transmittance_to_absorbance(t_pct; percent=true)
+    t_explicit = @test_logs min_level=Logging.Warn absorbance_to_transmittance(s; percent=true)
+    @test_logs min_level=Logging.Warn transmittance_to_absorbance(t_pct; percent=false)
+    @test_logs min_level=Logging.Warn absorbance_to_transmittance(s; percent=false)
+
+    # The implicit default still means percent=true — numerics unchanged
+    @test a_implicit.y == a_explicit.y
+    @test a_implicit.yunits == a_explicit.yunits == "ABS"
+    @test t_implicit.y == t_explicit.y
+    @test t_implicit.yunits == t_explicit.yunits == "TRANSMITTANCE"
 end
 
 @testset "axis labels" begin
@@ -361,7 +390,7 @@ end
     @test ylabel(uvvis) == "Absorbance"
 
     # Transmittance variants from the transforms
-    t = absorbance_to_transmittance(ftir)
+    t = absorbance_to_transmittance(ftir; percent=true)
     @test ylabel(t) == "Transmittance (%)"
     tf = absorbance_to_transmittance(ftir; percent=false)
     @test ylabel(tf) == "Transmittance"
