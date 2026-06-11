@@ -151,22 +151,30 @@ All values are stored as the raw `String` read from the file.
 
 ## Missing-field defaults
 
-To make every [`JASCOSpectrum`](@ref) field have a definite value, missing header keys fall back to placeholder values rather than `missing`:
+Header fields that are absent from the file stay honest — they are never replaced with fabricated placeholders:
 
-| Struct field      | Default when key is missing |
-|-------------------|-----------------------------|
-| `title`           | `"Untitled"`                |
-| `spectrometer`    | `"Unknown"`                 |
-| `datatype`        | `"Unknown"`                 |
-| `xunits`          | `"cm-1"`                    |
-| `yunits`          | `"Abs"`                     |
-| `date`            | `DateTime(2000)`            |
+| Struct field      | Value when key is missing |
+|-------------------|---------------------------|
+| `title`           | `"Untitled"`              |
+| `spectrometer`    | `""`                      |
+| `datatype`        | `""`                      |
+| `xunits`          | `""`                      |
+| `yunits`          | `""`                      |
+| `date`            | `nothing`                 |
 
 Check `haskey(s.metadata, "RESOLUTION")` when you need to distinguish a genuinely recorded value from a missing one.
 
 ## Date format
 
-JASCO writes `DATE` as `yy/mm/dd` and `TIME` as `HH:MM:SS`. The parser concatenates them and prepends `"20"` to form a four-digit year before parsing with `dateformat"yy/mm/ddTHH:MM:SS"`.
+JASCO usually writes `DATE` as `yy/mm/dd` (some variants use a four-digit year) and `TIME` as `HH:MM:SS`. The parser tries both year forms and returns `nothing` — never a sentinel date — when neither parses.
+
+## Strictness
+
+The data section is validated, not best-effort:
+
+- A row that does not parse as two numbers throws an `ArgumentError` naming the file and the offending line (corruption should be loud, not silently dropped).
+- When the header declares `NPOINTS` and that many rows have been read, any further non-blank lines are treated as footer metadata — some exports omit the blank line that normally separates data from footer.
+- Header `FIRSTX` and `NPOINTS` are cross-checked against the parsed data (with a one-grid-step tolerance for `FIRSTX`, since headers round it).
 
 ## UV-Vis classification
 

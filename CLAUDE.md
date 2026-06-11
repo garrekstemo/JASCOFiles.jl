@@ -24,8 +24,8 @@ abstract type AbstractJASCOSpectrum end
 
 struct JASCOSpectrum <: AbstractJASCOSpectrum
     title::String
-    date::DateTime
-    spectrometer::String
+    date::Union{DateTime, Nothing}   # nothing when the file has no parseable timestamp
+    spectrometer::String             # "" when absent — fields are never fabricated
     datatype::String
     xunits::String
     yunits::String
@@ -38,9 +38,12 @@ end
 ## Public API
 
 - `JASCOSpectrum(path; encoding=enc"SHIFT-JIS", translate=true)` - Parse a JASCO file (CSV/text, or binary `.jws`/`.jrs`)
-- `isftir(s)` - Returns `true` if spectrum is FTIR
-- `israman(s)` - Returns `true` if spectrum is Raman
-- `isuvvis(s)` - Returns `true` if spectrum is UV-Vis
+- `JASCOSpectrum(; x, y, kwargs...)` - Keyword constructor (only `x`, `y` required)
+- `JASCOSpectrum(s; kwargs...)` - Copy constructor with selected fields replaced
+- `isftir(s)` / `israman(s)` / `isuvvis(s)` - Instrument-type predicates
+- `transmittance_to_absorbance(s)` - Scale inferred from `yunits` ("TRANSMITTANCE" = %T, "TRANSMITTANCE_FRAC" = 0–1); explicit `percent` overrides; output `yunits = "ABSORBANCE"`
+- `absorbance_to_transmittance(s; percent)` - `percent` is a REQUIRED keyword (true → %T)
+- `xlabel(s)` / `ylabel(s)` - Formatted axis labels
 
 ## JASCO File Format
 

@@ -28,7 +28,7 @@ Pages = ["types.jl"]
 Private = false
 ```
 
-## Type predicates and Base methods
+## Type predicates
 
 ```@autodocs
 Modules = [JASCOFiles]

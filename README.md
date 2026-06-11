@@ -54,9 +54,14 @@ s.metadata["Accumulation"]
 ## Convenience features
 
 ```julia
-# Convert between transmittance and absorbance (JASCO's percent-T convention)
-t = absorbance_to_transmittance(s)   # yunits → "TRANSMITTANCE"
-a = transmittance_to_absorbance(t)   # yunits → "ABS", round-trips back
+# Convert between transmittance and absorbance.
+# The transmittance scale (percent vs fractional) is inferred from yunits;
+# the output scale of absorbance → transmittance is chosen explicitly.
+t = absorbance_to_transmittance(s; percent=true)   # yunits → "TRANSMITTANCE" (0–100)
+a = transmittance_to_absorbance(t)                 # infers %T; yunits → "ABSORBANCE"
+
+# Copy a spectrum with selected fields replaced
+s2 = JASCOSpectrum(s; title="corrected", y=s.y .- minimum(s.y))
 
 # Footer keys with Japanese names are also accessible via English aliases
 s.metadata["積算回数"]       # "16"
