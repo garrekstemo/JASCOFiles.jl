@@ -7,15 +7,20 @@ Julia package for reading JASCO spectrometer files: the CSV/text exports and the
 ```
 src/
 ├── JASCOFiles.jl    # Module definition and exports
-├── types.jl         # AbstractJASCOSpectrum and JASCOSpectrum struct
-├── parser.jl        # File parsing logic (CSV/text dispatcher + reader)
-├── binary.jl        # Native .jws/.jrs (SPECMAN/SPECIRM) binary reader
-└── utils.jl         # Base method extensions and type predicates
+├── types.jl         # AbstractJASCOSpectrum and JASCOSpectrum struct + constructors
+├── parser.jl        # CSV/text reader + magic-byte dispatch for binary formats
+├── binary.jl        # Modern .jws/.jrs (SPECMAN/SPECIRM "L~S " flat format)
+├── legacy.jl        # Legacy .jws (Spectra Manager 1.x, OLE2/CFB container)
+├── transforms.jl    # Unit-aware transmittance ↔ absorbance
+└── utils.jl         # Type predicates
 
 test/
 ├── runtests.jl      # Test suite
-└── data/            # Test fixtures: CSV/text exports + native binary (.jws/.jrs)
+└── data/            # Fixtures: CSV/text exports + modern and legacy binaries
 ```
+
+Format specs live in `docs/superpowers/specs/`: `2026-06-04` (modern flat
+format), `2026-06-11` (legacy OLE container, incl. the NRS Raman addendum).
 
 ## Type Hierarchy
 

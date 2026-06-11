@@ -105,11 +105,43 @@ match the V-series text export). `yunits` is decoded from the y-mode code:
 | `0x00` | TRANSMITTANCE |
 | `0x02` | REFLECTANCE |
 | `0x03` | ABSORBANCE |
+| `0x08` | INTENSITY (single-beam background) |
 | `0x09` / `0x0a` | INTENSITY (single-beam reference / sample) |
 
-Unsupported instruments (e.g. Raman NRS) and unknown y-mode codes throw an
-`ArgumentError` naming the file. Timestamps decode as UTC (the stored epoch),
-unlike the CSV path which records local time.
+Unsupported instruments and unknown y-mode codes throw an `ArgumentError`
+naming the file. Timestamps decode as UTC (the stored epoch), unlike the CSV
+path which records local time.
+
+## Legacy binary files (Spectra Manager 1.x)
+
+Older Spectra Manager versions wrote `.jws` as an **OLE2 compound document**
+(the same container as pre-2007 Microsoft Office files; magic
+`D0 CF 11 E0`). `JASCOSpectrum(path)` detects the container from the magic
+bytes — the extension is the same, so no caller-side distinction is needed.
+
+Inside the container, named streams hold the data: `DataInfo` (grid:
+NPOINTS, FIRSTX/LASTX/DELTAX, axis descriptors), `Y-Data` (`Float32`
+values), and optional metadata streams (`SampleInfo`, `UserInfo`,
+`ModuleInfo` with instrument model/serial, `MeasParam` acquisition
+parameters, `BaseInfo` original path and timestamps). Strings are UTF-16LE
+(not Shift-JIS); dates are OLE Automation dates stored in UTC.
+
+Two instrument families are supported:
+
+- **FTIR** (`FT/IR` series): linear grid reconstructed from
+  FIRSTX + DELTAX. Acquisition parameters (accumulation, resolution,
+  aperture, scan speed, gain, filter, light source, detector) are decoded
+  to named metadata keys.
+- **Raman** (NRS series): non-linear CCD axis read from an explicit
+  `X-Data` stream; `DELTAX` is zero in these files. Acquisition parameters
+  are kept as raw `MeasParam.tag<N>` entries because the tag numbering
+  differs per instrument family.
+
+JASCO marks invalid points with `-1.18e-38` (−`floatmin(Float32)`); these
+pass through unmodified, exactly as JASCO's own CSV exports print them. The
+full reverse-engineered layout lives in
+`docs/superpowers/specs/2026-06-11-legacy-jws-ole-reader-design.md`,
+validated against a 445-file lab corpus with 200+ paired CSV exports.
 
 ## Encoding
 

@@ -8,11 +8,15 @@
 
 JASCOFiles.jl reads JASCO spectrometer files (FTIR, Raman, UV-Vis): the CSV/text
 exports from Spectra Manager, and the native binary `.jws` / `.jrs` files
-(FTIR and UV-Vis) directly — no manual export step.
+directly — no manual export step. **Both binary generations are supported**:
+the modern flat format (current Spectra Manager and instrument firmware) and
+the legacy OLE-container format written by Spectra Manager 1.x, including
+Raman files with non-linear CCD axes. The two share the `.jws` extension and
+are told apart by their magic bytes automatically.
 
 `.jws` is written by the desktop Spectra Manager software; `.jrs` is the same
-spectrum as written by the spectrometer's onboard firmware. Both decode to the
-same `JASCOSpectrum`.
+spectrum as written by the spectrometer's onboard firmware. Everything decodes
+to the same `JASCOSpectrum`.
 
 ## Installation
 
@@ -72,10 +76,13 @@ s.metadata["Light source"]  # "Standard light source"
 
 ## Supported Instruments
 
-| Instrument | `datatype` field |
-|------------|------------------|
-| FTIR | `"INFRARED SPECTRUM"` |
-| Raman | `"RAMAN SPECTRUM"` |
-| UV-Vis | `"UV/VIS SPECTRUM"` |
+| Instrument | `datatype` field | CSV | Modern binary | Legacy binary |
+|------------|------------------|-----|---------------|---------------|
+| FTIR | `"INFRARED SPECTRUM"` | ✓ | ✓ | ✓ |
+| Raman | `"RAMAN SPECTRUM"` | ✓ | — | ✓ (NRS series) |
+| UV-Vis | `"UV/VIS SPECTRUM"` or blank | ✓ | ✓ | — |
+
+Binary dates are stored by the instrument in UTC and returned as such; CSV
+exports carry instrument-local wall time.
 
 If you have a file from an instrument, firmware version, or file-format variant not covered above, please [open an issue or PR](https://github.com/garrekstemo/JASCOFiles.jl/issues) with a representative file attached.

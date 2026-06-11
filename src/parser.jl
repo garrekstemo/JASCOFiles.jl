@@ -1,6 +1,13 @@
 function JASCOSpectrum(path::AbstractString; encoding=enc"SHIFT-JIS", translate::Bool=true)
     ext = lowercase(splitext(path)[2])
     if ext == ".jws" || ext == ".jrs"
+        # Two unrelated on-disk formats share the .jws extension: the legacy
+        # Spectra Manager 1.x OLE2 container and the modern "L~S " flat
+        # binary. Dispatch on the magic bytes, not the extension.
+        magic = open(io -> read(io, 8), path)
+        if magic == CFB_MAGIC
+            return _read_legacy_jws(path)
+        end
         return _read_jws(path; encoding=encoding)
     end
     return _read_jasco_csv(path; encoding=encoding, translate=translate)

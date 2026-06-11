@@ -679,6 +679,103 @@ end
     @test JASCOSpectrum(write_jws(make_jws())).date === nothing
 end
 
+@testset "legacy .jws (Spectra Manager 1.x, OLE container)" begin
+    # %T file, 512-byte-sector CFB (v3). Real FT/IR-4600 measurement.
+    t = JASCOSpectrum(joinpath(data_dir, "legacy_trans_512.jws"))
+    @test t.yunits == "TRANSMITTANCE"
+    @test t.datatype == "INFRARED SPECTRUM"
+    @test t.xunits == "1/CM"
+    @test t.spectrometer == "FT/IR-4600typeA"
+    @test isftir(t)
+    @test length(t.x) == 7573
+    @test t.x[1] ≈ 499.4729 atol = 1e-3
+    @test t.metadata["Format"] == "SPCMAN2 CFB"
+    @test t.metadata["Serial Number"] == "E137161786"
+    @test t.metadata["Accumulation"] == 16
+    @test t.date isa DateTime    # stored UTC; CSV exports carry local time
+
+    # Same format written with 4096-byte sectors (CFB v4)
+    v4 = JASCOSpectrum(joinpath(data_dir, "legacy_trans_4096.jws"))
+    @test v4.yunits == "TRANSMITTANCE"
+    @test length(v4.x) == 7573
+
+    # Absorbance file (y-mode 0x03)
+    a = JASCOSpectrum(joinpath(data_dir, "legacy_abs_512.jws"))
+    @test a.yunits == "ABSORBANCE"
+
+    # Single-beam background (y-mode 0x08)
+    bg = JASCOSpectrum(joinpath(data_dir, "legacy_bg_512.jws"))
+    @test bg.yunits == "INTENSITY"
+    @test bg.metadata["Channel"] == "Background"
+    @test length(bg.x) == 12447
+
+    # Unit-aware conversion works straight off a legacy %T file
+    at = transmittance_to_absorbance(t)
+    @test at.yunits == "ABSORBANCE"
+end
+
+@testset "legacy .jws Raman (NRS-5100, non-linear X-Data axis)" begin
+    r = JASCOSpectrum(joinpath(data_dir, "legacy_raman.jws"))
+    @test israman(r)
+    @test r.datatype == "RAMAN SPECTRUM"
+    @test r.yunits == "INTENSITY"
+    @test r.xunits == "1/CM"
+    @test r.spectrometer == "NRS-5100"
+    @test length(r.x) == 1024
+    @test issorted(r.x)
+    @test r.date isa DateTime    # BaseInfo measurement date, UTC
+
+    # The Raman MeasParam tag namespace differs from FTIR: tags stay raw
+    # rather than being mislabeled with FTIR names.
+    @test !haskey(r.metadata, "Accumulation")
+    @test any(startswith("MeasParam.tag"), keys(r.metadata))
+
+    # Ground truth: JASCO's own CSV export of the same measurement
+    csv = JASCOSpectrum(joinpath(data_dir, "legacy_raman_pair.csv"))
+    @test length(r.x) == length(csv.x)
+    @test maximum(abs.(r.x .- csv.x)) < 1e-3      # export prints 4 decimals
+    @test all(isapprox.(r.y, csv.y; atol=1e-2, rtol=1e-4))
+    @test r.yunits == csv.yunits == "INTENSITY"
+    @test r.datatype == csv.datatype == "RAMAN SPECTRUM"
+end
+
+@testset "legacy .jws vs CSV export ground truth" begin
+    bin = JASCOSpectrum(joinpath(data_dir, "legacy_trans_512.jws"))
+    csv = JASCOSpectrum(joinpath(data_dir, "legacy_trans_512_pair.csv"))
+
+    @test length(bin.x) == length(csv.x)
+    # The export prints x to 4 decimals and accumulates ~3.7e-3 rounding
+    # drift over 7573 points; the binary grid is canonical.
+    @test maximum(abs.(bin.x .- csv.x)) < 0.005
+    # y values agree to the export's printed precision.
+    @test all(isapprox.(bin.y, csv.y; atol=1e-6, rtol=1e-4))
+
+    @test bin.yunits == csv.yunits == "TRANSMITTANCE"
+    @test bin.datatype == csv.datatype == "INFRARED SPECTRUM"
+    @test isftir(bin) == isftir(csv) == true
+end
+
+@testset "legacy .jws error paths" begin
+    raw = read(joinpath(data_dir, "legacy_trans_512.jws"))
+
+    # Corrupt magic: neither CFB nor "L~S " → routed to the modern reader,
+    # which rejects it.
+    bad = copy(raw)
+    bad[1] = 0x00
+    @test_throws "missing 'L~S '" JASCOSpectrum(write_jws(bad))
+
+    # Truncated container
+    @test_throws "truncated or corrupt CFB" JASCOSpectrum(write_jws(raw[1:1024]))
+
+    # Required stream missing: rename "DataInfo" (UTF-16LE) in the directory
+    nodata = copy(raw)
+    pat = reinterpret(UInt8, Vector{UInt16}(codeunits("DataInfo") .|> UInt16))
+    idx = findfirst(i -> nodata[i:i+length(pat)-1] == pat, 1:(length(nodata)-length(pat)+1))
+    @test idx !== nothing
+    nodata[idx] = UInt8('X')
+    @test_throws "missing stream 'DataInfo'" JASCOSpectrum(write_jws(nodata))
+end
+
 @testset "Base.length/size removed (2.0)" begin
     # A spectrum is not a collection; use length(s.x). The Tables extension
     # is the supported tabular interface.

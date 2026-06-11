@@ -8,7 +8,7 @@ CurrentModule = JASCOFiles
 JASCOFiles
 ```
 
-JASCOFiles.jl reads the CSV files exported from JASCO spectrometers (FTIR, Raman, and UV-Vis) into a [`JASCOSpectrum`](@ref) struct holding the x-axis (wavenumber or wavelength), the y-axis (absorbance, transmittance, or intensity), the recording date, the instrument name, etc. The full raw header is preserved in `s.metadata`.
+JASCOFiles.jl reads JASCO spectrometer files (FTIR, Raman, and UV-Vis) into a [`JASCOSpectrum`](@ref) struct holding the x-axis (wavenumber or wavelength), the y-axis (absorbance, transmittance, or intensity), the recording date, the instrument name, etc. The full raw header is preserved in `s.metadata`. Three file families are supported through the single `JASCOSpectrum(path)` entry point: CSV/text exports, the modern binary `.jws`/`.jrs` format, and the legacy OLE-container `.jws` format written by Spectra Manager 1.x (including Raman files with non-linear CCD axes).
 
 The parser auto-detects the delimiter (comma for FTIR/Raman, tab for V-series UV-Vis) and decodes Japanese text encoding (SHIFT-JIS) by default, so the same `JASCOSpectrum(path)` call loads every file a JASCO instrument produces.
 
