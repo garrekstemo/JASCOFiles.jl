@@ -8,7 +8,7 @@ CurrentModule = JASCOFiles
 JASCOFiles
 ```
 
-JASCOFiles.jl reads the CSV files exported from JASCO spectrometers (FTIR, Raman, and UV-Vis) into a [`JASCOSpectrum`](@ref) struct holding the x-axis (wavenumber or wavelength), the y-axis (absorbance, transmittance, or intensity), the recording date, the instrument name, etc. The full raw header is preserved in `s.metadata`.
+JASCOFiles.jl reads JASCO spectrometer files (FTIR, Raman, and UV-Vis) into a [`JASCOSpectrum`](@ref) struct holding the x-axis (wavenumber or wavelength), the y-axis (absorbance, transmittance, or intensity), the recording date, the instrument name, etc. The full raw header is preserved in `s.metadata`. Three file families are supported through the single `JASCOSpectrum(path)` entry point: CSV/text exports, the modern binary `.jws`/`.jrs` format, and the legacy OLE-container `.jws` format written by Spectra Manager 1.x (including Raman files with non-linear CCD axes).
 
 The parser auto-detects the delimiter (comma for FTIR/Raman, tab for V-series UV-Vis) and decodes Japanese text encoding (SHIFT-JIS) by default, so the same `JASCOSpectrum(path)` call loads every file a JASCO instrument produces.
 
@@ -57,10 +57,23 @@ s.yunits     # "ABSORBANCE", "INTENSITY", ...
 s.datatype   # "INFRARED SPECTRUM", "RAMAN SPECTRUM", "UV/VIS SPECTRUM", or "" for V-730
 s.title      # from the TITLE header field
 s.spectrometer
-s.date       # DateTime, parsed from DATE + TIME
+s.date       # DateTime parsed from DATE + TIME, or nothing if the file has none
 ```
 
-You can also ask how many points the spectrum has with `length(s)`.
+Header fields that are missing from the file are empty strings, and a
+missing or unparseable timestamp gives `s.date === nothing` — the struct
+never fabricates placeholder values. The number of points is `length(s.x)`.
+
+## Building and modifying spectra
+
+Spectra can be constructed directly with keywords (only `x` and `y` are
+required), and copied with selected fields replaced:
+
+```julia
+s = JASCOSpectrum(x=[400.0, 401.0], y=[0.1, 0.2], yunits="ABSORBANCE")
+s2 = JASCOSpectrum(s; title="renamed")            # copy, new title
+s3 = JASCOSpectrum(s; y=s.y .* 2, yunits="")      # copy, new data
+```
 
 ## Metadata
 

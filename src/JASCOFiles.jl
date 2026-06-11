@@ -2,12 +2,16 @@
     JASCOFiles
 
 Read JASCO spectrometer files into a concrete [`JASCOSpectrum`](@ref) struct:
-the CSV/text exports (FTIR, Raman, UV-Vis; delimiter auto-detected, SHIFT-JIS
-by default) and the native binary `.jws` (SPECMAN) and `.jrs` (SPECIRM) files
-for FTIR and UV-Vis. `JASCOSpectrum(path)` dispatches on the file extension.
 
-Call [`JASCOSpectrum`](@ref)`(path)` to read a file, then access `.x`, `.y`,
-`.xunits`, `.yunits`, `.datatype`, and `.metadata` on the result. Use
+- CSV/text exports (FTIR, Raman, UV-Vis; delimiter auto-detected, SHIFT-JIS
+  by default)
+- modern binary `.jws` (SPECMAN) / `.jrs` (SPECIRM) files (FTIR, UV-Vis)
+- legacy binary `.jws` files from Spectra Manager 1.x (OLE2 container;
+  FTIR and Raman) — the two binary generations share the extension and are
+  distinguished by their magic bytes
+
+Call [`JASCOSpectrum`](@ref)`(path)` to read any of them, then access `.x`,
+`.y`, `.xunits`, `.yunits`, `.datatype`, and `.metadata` on the result. Use
 [`isftir`](@ref), [`israman`](@ref), or [`isuvvis`](@ref) to dispatch on
 instrument type.
 """
@@ -20,6 +24,7 @@ include("types.jl")
 include("translations.jl")
 include("parser.jl")
 include("binary.jl")
+include("legacy.jl")
 include("utils.jl")
 include("transforms.jl")
 include("plotting.jl")

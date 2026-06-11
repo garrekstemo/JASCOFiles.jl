@@ -7,15 +7,20 @@ Julia package for reading JASCO spectrometer files: the CSV/text exports and the
 ```
 src/
 ├── JASCOFiles.jl    # Module definition and exports
-├── types.jl         # AbstractJASCOSpectrum and JASCOSpectrum struct
-├── parser.jl        # File parsing logic (CSV/text dispatcher + reader)
-├── binary.jl        # Native .jws/.jrs (SPECMAN/SPECIRM) binary reader
-└── utils.jl         # Base method extensions and type predicates
+├── types.jl         # AbstractJASCOSpectrum and JASCOSpectrum struct + constructors
+├── parser.jl        # CSV/text reader + magic-byte dispatch for binary formats
+├── binary.jl        # Modern .jws/.jrs (SPECMAN/SPECIRM "L~S " flat format)
+├── legacy.jl        # Legacy .jws (Spectra Manager 1.x, OLE2/CFB container)
+├── transforms.jl    # Unit-aware transmittance ↔ absorbance
+└── utils.jl         # Type predicates
 
 test/
 ├── runtests.jl      # Test suite
-└── data/            # Test fixtures: CSV/text exports + native binary (.jws/.jrs)
+└── data/            # Fixtures: CSV/text exports + modern and legacy binaries
 ```
+
+Format specs live in `docs/superpowers/specs/`: `2026-06-04` (modern flat
+format), `2026-06-11` (legacy OLE container, incl. the NRS Raman addendum).
 
 ## Type Hierarchy
 
@@ -24,8 +29,8 @@ abstract type AbstractJASCOSpectrum end
 
 struct JASCOSpectrum <: AbstractJASCOSpectrum
     title::String
-    date::DateTime
-    spectrometer::String
+    date::Union{DateTime, Nothing}   # nothing when the file has no parseable timestamp
+    spectrometer::String             # "" when absent — fields are never fabricated
     datatype::String
     xunits::String
     yunits::String
@@ -38,9 +43,12 @@ end
 ## Public API
 
 - `JASCOSpectrum(path; encoding=enc"SHIFT-JIS", translate=true)` - Parse a JASCO file (CSV/text, or binary `.jws`/`.jrs`)
-- `isftir(s)` - Returns `true` if spectrum is FTIR
-- `israman(s)` - Returns `true` if spectrum is Raman
-- `isuvvis(s)` - Returns `true` if spectrum is UV-Vis
+- `JASCOSpectrum(; x, y, kwargs...)` - Keyword constructor (only `x`, `y` required)
+- `JASCOSpectrum(s; kwargs...)` - Copy constructor with selected fields replaced
+- `isftir(s)` / `israman(s)` / `isuvvis(s)` - Instrument-type predicates
+- `transmittance_to_absorbance(s)` - Scale inferred from `yunits` ("TRANSMITTANCE" = %T, "TRANSMITTANCE_FRAC" = 0–1); explicit `percent` overrides; output `yunits = "ABSORBANCE"`
+- `absorbance_to_transmittance(s; percent)` - `percent` is a REQUIRED keyword (true → %T)
+- `xlabel(s)` / `ylabel(s)` - Formatted axis labels
 
 ## JASCO File Format
 

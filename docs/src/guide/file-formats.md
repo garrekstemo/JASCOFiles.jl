@@ -105,11 +105,43 @@ match the V-series text export). `yunits` is decoded from the y-mode code:
 | `0x00` | TRANSMITTANCE |
 | `0x02` | REFLECTANCE |
 | `0x03` | ABSORBANCE |
+| `0x08` | INTENSITY (single-beam background) |
 | `0x09` / `0x0a` | INTENSITY (single-beam reference / sample) |
 
-Unsupported instruments (e.g. Raman NRS) and unknown y-mode codes throw an
-`ArgumentError` naming the file. Timestamps decode as UTC (the stored epoch),
-unlike the CSV path which records local time.
+Unsupported instruments and unknown y-mode codes throw an `ArgumentError`
+naming the file. Timestamps decode as UTC (the stored epoch), unlike the CSV
+path which records local time.
+
+## Legacy binary files (Spectra Manager 1.x)
+
+Older Spectra Manager versions wrote `.jws` as an **OLE2 compound document**
+(the same container as pre-2007 Microsoft Office files; magic
+`D0 CF 11 E0`). `JASCOSpectrum(path)` detects the container from the magic
+bytes — the extension is the same, so no caller-side distinction is needed.
+
+Inside the container, named streams hold the data: `DataInfo` (grid:
+NPOINTS, FIRSTX/LASTX/DELTAX, axis descriptors), `Y-Data` (`Float32`
+values), and optional metadata streams (`SampleInfo`, `UserInfo`,
+`ModuleInfo` with instrument model/serial, `MeasParam` acquisition
+parameters, `BaseInfo` original path and timestamps). Strings are UTF-16LE
+(not Shift-JIS); dates are OLE Automation dates stored in UTC.
+
+Two instrument families are supported:
+
+- **FTIR** (`FT/IR` series): linear grid reconstructed from
+  FIRSTX + DELTAX. Acquisition parameters (accumulation, resolution,
+  aperture, scan speed, gain, filter, light source, detector) are decoded
+  to named metadata keys.
+- **Raman** (NRS series): non-linear CCD axis read from an explicit
+  `X-Data` stream; `DELTAX` is zero in these files. Acquisition parameters
+  are kept as raw `MeasParam.tag<N>` entries because the tag numbering
+  differs per instrument family.
+
+JASCO marks invalid points with `-1.18e-38` (−`floatmin(Float32)`); these
+pass through unmodified, exactly as JASCO's own CSV exports print them. The
+full reverse-engineered layout lives in
+`docs/superpowers/specs/2026-06-11-legacy-jws-ole-reader-design.md`,
+validated against a 445-file lab corpus with 200+ paired CSV exports.
 
 ## Encoding
 
@@ -151,22 +183,30 @@ All values are stored as the raw `String` read from the file.
 
 ## Missing-field defaults
 
-To make every [`JASCOSpectrum`](@ref) field have a definite value, missing header keys fall back to placeholder values rather than `missing`:
+Header fields that are absent from the file stay honest — they are never replaced with fabricated placeholders:
 
-| Struct field      | Default when key is missing |
-|-------------------|-----------------------------|
-| `title`           | `"Untitled"`                |
-| `spectrometer`    | `"Unknown"`                 |
-| `datatype`        | `"Unknown"`                 |
-| `xunits`          | `"cm-1"`                    |
-| `yunits`          | `"Abs"`                     |
-| `date`            | `DateTime(2000)`            |
+| Struct field      | Value when key is missing |
+|-------------------|---------------------------|
+| `title`           | `"Untitled"`              |
+| `spectrometer`    | `""`                      |
+| `datatype`        | `""`                      |
+| `xunits`          | `""`                      |
+| `yunits`          | `""`                      |
+| `date`            | `nothing`                 |
 
 Check `haskey(s.metadata, "RESOLUTION")` when you need to distinguish a genuinely recorded value from a missing one.
 
 ## Date format
 
-JASCO writes `DATE` as `yy/mm/dd` and `TIME` as `HH:MM:SS`. The parser concatenates them and prepends `"20"` to form a four-digit year before parsing with `dateformat"yy/mm/ddTHH:MM:SS"`.
+JASCO usually writes `DATE` as `yy/mm/dd` (some variants use a four-digit year) and `TIME` as `HH:MM:SS`. The parser tries both year forms and returns `nothing` — never a sentinel date — when neither parses.
+
+## Strictness
+
+The data section is validated, not best-effort:
+
+- A row that does not parse as two numbers throws an `ArgumentError` naming the file and the offending line (corruption should be loud, not silently dropped).
+- When the header declares `NPOINTS` and that many rows have been read, any further non-blank lines are treated as footer metadata — some exports omit the blank line that normally separates data from footer.
+- Header `FIRSTX` and `NPOINTS` are cross-checked against the parsed data (with a one-grid-step tolerance for `FIRSTX`, since headers round it).
 
 ## UV-Vis classification
 

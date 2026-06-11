@@ -2,7 +2,6 @@ using Test
 using JASCOFiles
 using Dates
 using Aqua
-using Logging
 using StringEncodings
 using Makie
 using Tables
@@ -40,6 +39,13 @@ function write_jws(bytes)
     return path
 end
 
+# Write an ASCII CSV fixture to a temp file (ASCII is valid SHIFT-JIS).
+function write_csv(content; ext=".csv")
+    path = tempname() * ext
+    write(path, content)
+    return path
+end
+
 @testset "Code quality (Aqua.jl)" begin
     Aqua.test_all(JASCOFiles; deps_compat=(check_extras=false, ignore=[:Dates],))
 end
@@ -54,8 +60,8 @@ end
     # Check first Y value (Absorbance)
     @test round(s.y[1], sigdigits=3) ≈ 0.573
 
-    @test length(s) == 12447
-    @test size(s) == (12447,)
+    @test length(s.x) == 12447
+    @test length(s.y) == 12447
 
     # Test Metadata Extraction
     @test s.metadata["XUNITS"] == "1/CM"
@@ -65,26 +71,36 @@ end
     @test s.date == DateTime(2023, 1, 11, 16, 49, 31)
 end
 
-@testset "FTIR edge cases" begin
-    malformed_file = joinpath(data_dir, "ftir_malformed.csv")
-    s = JASCOSpectrum(malformed_file)
+@testset "strict data rows (2.0)" begin
+    # Unparseable rows inside the data section are corruption, not noise:
+    # the parser throws instead of silently dropping them (1.x behavior).
+    @test_throws "unparseable data row" JASCOSpectrum(joinpath(data_dir, "ftir_malformed.csv"))
+    @test_throws "unparseable data row" JASCOSpectrum(joinpath(data_dir, "raman_malformed.csv"))
 
-    # Test defaults for missing/invalid metadata
-    @test s.title == "Malformed Data Test"
-    @test s.spectrometer == "Unknown"
-    @test s.datatype == "Unknown"  # No DATA TYPE in malformed file
-    @test s.xunits == "cm-1" # Default
-    @test s.yunits == "Abs"  # Default
-    @test s.date == DateTime(2000) # Default failure fallback
+    # NPOINTS-complete data followed by an unmarked footer (no blank line):
+    # once the declared point count is reached, non-data lines flip the
+    # parser to footer mode instead of throwing.
+    p = write_csv("TITLE,Flip\nNPOINTS,2\nXYDATA\n1,0.5\n2,0.6\n[Section]\nOperator,Bob\n")
+    s = JASCOSpectrum(p)
+    @test length(s.x) == 2
+    @test s.metadata["Operator"] == "Bob"
 
-    # Test skipping of invalid data lines
-    # valid lines: (1000.0, 0.1), (2000.0, 0.2), (4000.0, 0.4)
-    # GARBAGE_LINE should be skipped
-    # 3000.0,NoteANumber should be skipped (parse error)
-    @test length(s.x) == 3
-    @test length(s.y) == 3
-    @test s.x == [1000.0, 2000.0, 4000.0]
-    @test s.y == [0.1, 0.2, 0.4]
+    # Header FIRSTX must agree with the first parsed x value.
+    pbad = write_csv("TITLE,F\nFIRSTX,500\nDELTAX,1\nXYDATA\n1000,0.1\n1001,0.2\n")
+    @test_throws "FIRSTX" JASCOSpectrum(pbad)
+end
+
+@testset "honest metadata defaults (2.0)" begin
+    # Missing header fields stay empty instead of fabricating
+    # "Unknown"/"cm-1"/"Abs" placeholders.
+    p = write_csv("TITLE,Bare\nXYDATA\n1,1\n2,2\n")
+    s = JASCOSpectrum(p)
+    @test s.title == "Bare"
+    @test s.spectrometer == ""
+    @test s.datatype == ""
+    @test s.xunits == ""
+    @test s.yunits == ""
+    @test s.date === nothing
 end
 
 @testset "read JASCO Raman csv file" begin
@@ -105,27 +121,10 @@ end
     # Check first Y value (intensity)
     @test s.y[1] == 199
 
-    @test length(s) == 1024
-    @test size(s) == (1024,)
+    @test length(s.x) == 1024
+    @test length(s.y) == 1024
 
     @test s.date == DateTime(2024, 11, 5, 15, 23, 6)
-end
-
-@testset "Raman edge cases" begin
-    malformed_file = joinpath(data_dir, "raman_malformed.csv")
-    s = JASCOSpectrum(malformed_file)
-
-    @test s.title == "Malformed Raman Test"
-    @test s.datatype == "RAMAN SPECTRUM"
-
-    # Test skipping of invalid data lines
-    # valid lines: (500.0, 100), (700.0, 150), (800.0, 200)
-    # 600.0,NotANumber should be skipped (parse error)
-    # GARBAGE_LINE should be skipped
-    @test length(s.x) == 3
-    @test length(s.y) == 3
-    @test s.x == [500.0, 700.0, 800.0]
-    @test s.y == [100.0, 150.0, 200.0]
 end
 
 @testset "read JASCO UV-Vis csv file" begin
@@ -139,7 +138,7 @@ end
     @test s.spectrometer == "JASCO Corp., V-730, Rev. 1.00"
 
     # 1001 points from 1000 nm down to 500 nm in 0.5 nm steps
-    @test length(s) == 1001
+    @test length(s.x) == 1001
     @test s.x[1] == 1000.0
     @test s.x[end] == 500.0
     @test s.y[1] == -0.0983645
@@ -279,12 +278,12 @@ end
     @test occursin("INFRARED SPECTRUM", compact_out)
     @test !occursin('\n', compact_out)
 
-    # Empty-spectrum path: no "range:" line
-    empty_s = JASCOSpectrum("", DateTime(2000), "", "UNKNOWN",
-                            "", "", Float64[], Float64[], Dict{String,Any}())
+    # Empty-spectrum path: no "range:" line; unknown date prints as such
+    empty_s = JASCOSpectrum(x=Float64[], y=Float64[], datatype="UNKNOWN")
     empty_out = sprint(show, MIME("text/plain"), empty_s)
     @test !occursin("range:", empty_out)
     @test occursin("0 points", empty_out)
+    @test occursin("unknown", empty_out)   # date === nothing
 end
 
 @testset "error paths" begin
@@ -294,8 +293,12 @@ end
     # Invalid-input validation: the constructor must throw, not silently
     # return an empty/defaulted spectrum (see 2026-05-29 validation spec).
     @test_throws "no XYDATA section" JASCOSpectrum(joinpath(data_dir, "not_a_spectrum.csv"))
-    @test_throws "no parseable data points" JASCOSpectrum(joinpath(data_dir, "empty_xydata.csv"))
     @test_throws "NPOINTS=512 but found 3" JASCOSpectrum(joinpath(data_dir, "wrong_npoints.csv"))
+
+    # Junk rows after XYDATA are an unparseable-row error (2.0 strictness)…
+    @test_throws "unparseable data row" JASCOSpectrum(joinpath(data_dir, "empty_xydata.csv"))
+    # …while an XYDATA section with no rows at all is an empty-data error.
+    @test_throws "no parseable data points" JASCOSpectrum(write_csv("TITLE,E\nXYDATA\n"))
 end
 
 @testset "Japanese SHIFT-JIS header" begin
@@ -314,65 +317,72 @@ end
     @test default_call.x == explicit_call.x
 end
 
-@testset "transmittance ↔ absorbance" begin
-    s = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))  # ABSORBANCE
+@testset "transmittance ↔ absorbance (unit-aware, 2.0)" begin
+    s = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))  # yunits ABSORBANCE
 
-    # Percent round-trip from absorbance and back
+    # absorbance → transmittance requires an explicit output scale
     t = absorbance_to_transmittance(s; percent=true)
     @test t.yunits == "TRANSMITTANCE"
     @test t.x === s.x
     @test t.metadata === s.metadata
     @test t.title == s.title
-    a = transmittance_to_absorbance(t; percent=true)
-    @test a.yunits == "ABS"
+
+    # %T → absorbance: scale inferred from yunits; canonical output units
+    a = transmittance_to_absorbance(t)
+    @test a.yunits == "ABSORBANCE"
     @test a.y ≈ s.y atol=1e-12
 
-    # Fractional round-trip
+    # Fractional round-trip via inference
     tf = absorbance_to_transmittance(s; percent=false)
     @test tf.yunits == "TRANSMITTANCE_FRAC"
-    af = transmittance_to_absorbance(tf; percent=false)
-    @test af.yunits == "ABS"
+    af = transmittance_to_absorbance(tf)
+    @test af.yunits == "ABSORBANCE"
     @test af.y ≈ s.y atol=1e-12
 
-    # Known landmark: T=10% → A=1, T=1% → A=2
-    landmark = JASCOSpectrum("t", DateTime(2024), "test", "UV/VIS SPECTRUM",
-                             "NANOMETERS", "TRANSMITTANCE",
-                             [500.0, 600.0], [10.0, 1.0], Dict{String,Any}())
-    @test transmittance_to_absorbance(landmark; percent=true).y ≈ [1.0, 2.0]
+    # Landmarks with inferred scale: T=10% → A=1, T=1% → A=2
+    landmark = JASCOSpectrum(x=[500.0, 600.0], y=[10.0, 1.0],
+                             datatype="UV/VIS SPECTRUM", xunits="NANOMETERS",
+                             yunits="TRANSMITTANCE")
+    @test transmittance_to_absorbance(landmark).y ≈ [1.0, 2.0]
 
-    # Fractional landmark: T=0.5 → A ≈ 0.30103
-    landmark_frac = JASCOSpectrum("t", DateTime(2024), "test", "UV/VIS SPECTRUM",
-                                  "NANOMETERS", "TRANSMITTANCE_FRAC",
-                                  [500.0], [0.5], Dict{String,Any}())
-    @test transmittance_to_absorbance(landmark_frac; percent=false).y ≈ [-log10(0.5)]
+    landmark_frac = JASCOSpectrum(landmark; x=[500.0], y=[0.5],
+                                  yunits="TRANSMITTANCE_FRAC")
+    @test transmittance_to_absorbance(landmark_frac).y ≈ [-log10(0.5)]
+
+    # Explicit percent always overrides yunits inference
+    @test transmittance_to_absorbance(landmark; percent=false).y ≈ [-1.0, 0.0]
+
+    # Nonpositive transmittance (saturated bands, detector noise) maps to
+    # NaN with a warning, rather than crashing on log10
+    sat = JASCOSpectrum(x=[1.0, 2.0, 3.0], y=[50.0, 0.0, -0.1],
+                        yunits="TRANSMITTANCE")
+    asat = @test_logs (:warn, r"nonpositive") transmittance_to_absorbance(sat)
+    @test asat.y[1] ≈ -log10(0.5)
+    @test isnan(asat.y[2])
+    @test isnan(asat.y[3])
+
+    # Binary %T file: inference works straight off the instrument file
+    tbin = JASCOSpectrum(joinpath(data_dir, "uvvis_trans.jws"))
+    abin = transmittance_to_absorbance(tbin)
+    @test abin.yunits == "ABSORBANCE"
+    @test abin.y ≈ -log10.(tbin.y ./ 100)
 end
 
-@testset "implicit percent default deprecation" begin
-    # JASCOFiles 1.x defaults to percent=true — the OPPOSITE of
-    # OpticalSpectroscopy.jl (percent=false). Relying on the implicit default
-    # must warn (once per session); explicit `percent` must stay silent and
-    # numerically unchanged. The default flips to percent=false in 2.0.
-    s = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))  # ABSORBANCE
-    t_pct = JASCOSpectrum("t", DateTime(2024), "test", "UV/VIS SPECTRUM",
-                          "NANOMETERS", "TRANSMITTANCE",
-                          [500.0, 600.0], [10.0, 1.0], Dict{String,Any}())
+@testset "conversion guards (2.0)" begin
+    s_abs = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))    # ABSORBANCE
+    raman = JASCOSpectrum(joinpath(data_dir, "raman_test.csv"))   # INTENSITY
 
-    # Implicit default warns (each @test_logs uses a fresh logger, so
-    # maxlog=1 does not suppress across these assertions)
-    a_implicit = @test_logs (:warn, r"percent") transmittance_to_absorbance(t_pct)
-    t_implicit = @test_logs (:warn, r"percent") absorbance_to_transmittance(s)
+    # t→a refuses input whose yunits is not a transmittance scale
+    # (and no explicit percent was given to override)
+    @test_throws ArgumentError transmittance_to_absorbance(s_abs)
+    @test_throws ArgumentError transmittance_to_absorbance(raman)
 
-    # Explicit percent (either value) is silent
-    a_explicit = @test_logs min_level=Logging.Warn transmittance_to_absorbance(t_pct; percent=true)
-    t_explicit = @test_logs min_level=Logging.Warn absorbance_to_transmittance(s; percent=true)
-    @test_logs min_level=Logging.Warn transmittance_to_absorbance(t_pct; percent=false)
-    @test_logs min_level=Logging.Warn absorbance_to_transmittance(s; percent=false)
+    # a→t has no implicit output scale: percent is a required keyword
+    @test_throws UndefKeywordError absorbance_to_transmittance(s_abs)
 
-    # The implicit default still means percent=true — numerics unchanged
-    @test a_implicit.y == a_explicit.y
-    @test a_implicit.yunits == a_explicit.yunits == "ABS"
-    @test t_implicit.y == t_explicit.y
-    @test t_implicit.yunits == t_explicit.yunits == "TRANSMITTANCE"
+    # a→t refuses input that is already transmittance
+    t = absorbance_to_transmittance(s_abs; percent=true)
+    @test_throws ArgumentError absorbance_to_transmittance(t; percent=true)
 end
 
 @testset "axis labels" begin
@@ -395,16 +405,16 @@ end
     tf = absorbance_to_transmittance(ftir; percent=false)
     @test ylabel(tf) == "Transmittance"
 
-    # Default-fallback file has xunits="cm-1", yunits="Abs"
-    malformed = JASCOSpectrum(joinpath(data_dir, "ftir_malformed.csv"))
-    @test xlabel(malformed) == "Wavenumber (cm⁻¹)"
-    @test ylabel(malformed) == "Absorbance"
-
     # Unknown units fall back to title-casing the raw value
-    weird = JASCOSpectrum("x", DateTime(2000), "spec", "INFRARED SPECTRUM",
-                         "kelvin", "candelas", Float64[], Float64[], Dict{String,Any}())
+    weird = JASCOSpectrum(x=Float64[], y=Float64[], datatype="INFRARED SPECTRUM",
+                          xunits="kelvin", yunits="candelas")
     @test xlabel(weird) == "Kelvin"
     @test ylabel(weird) == "Candelas"
+
+    # Empty units (honest defaults) yield empty labels, not fabricated ones
+    bare = JASCOSpectrum(x=[1.0], y=[1.0])
+    @test xlabel(bare) == ""
+    @test ylabel(bare) == ""
 end
 
 @testset "Makie extension" begin
@@ -463,7 +473,7 @@ end
 
     # Row-access works through the generic Tables fallback over column access.
     rows = collect(Tables.rows(s))
-    @test length(rows) == length(s)
+    @test length(rows) == length(s.x)
     @test Tables.getcolumn(rows[1], :x) == s.x[1]
     @test Tables.getcolumn(rows[1], :y) == s.y[1]
 end
@@ -472,7 +482,7 @@ end
     # Public entry point routes .jws to the binary reader.
     s = JASCOSpectrum(joinpath(data_dir, "ftir_test.jws"))
     @test isftir(s)
-    @test length(s) == 12447
+    @test length(s.x) == 12447
     @test s.datatype == "INFRARED SPECTRUM"
 
     # Non-binary extensions still route to the CSV reader (regression).
@@ -487,7 +497,7 @@ end
     @test s.datatype == "INFRARED SPECTRUM"
     @test s.xunits == "1/CM"
     @test s.yunits == "ABSORBANCE"
-    @test length(s) == 12447
+    @test length(s.x) == 12447
     @test round(s.x[1], digits=4) == 999.9101
     @test round(s.x[end], digits=3) == 7000.335
     @test round(s.y[1], sigdigits=3) ≈ 0.0188
@@ -506,7 +516,7 @@ end
     @test a.yunits == "ABSORBANCE"
     @test isuvvis(a)                    # inferred from NANOMETERS + range
     @test !isftir(a)
-    @test length(a) == 61
+    @test length(a.x) == 61
     @test a.x[1] == 700.0
     @test a.x[end] == 400.0             # descending grid (DELTAX < 0)
     @test round(a.y[1], sigdigits=4) ≈ -6.388e-5
@@ -535,7 +545,7 @@ end
     txt = JASCOSpectrum(joinpath(data_dir, "uvvis_abs.txt"))  # routes to CSV/tab reader
 
     # Same shape and grid.
-    @test length(bin) == length(txt)
+    @test length(bin.x) == length(txt.x)
     @test bin.x ≈ txt.x
 
     # Values agree to the text export's displayed precision (~6 sig figs).
@@ -581,6 +591,12 @@ end
     badn[0x84+1:0x84+4] = reinterpret(UInt8, [htol(Int32(9))])
     @test_throws "inconsistent point count" JASCOSpectrum(write_jws(badn))
 
+    # Trailing appended bytes shift the tail-anchored data block: the reader
+    # must refuse rather than silently decode garbage (data starts at 0x740
+    # in every known SPECMAN/SPECIRM R2.0.0 file).
+    padded = vcat(make_jws(), zeros(UInt8, 64))
+    @test_throws "data layout" JASCOSpectrum(write_jws(padded))
+
     # A stale/mismatched stored LASTX is NOT an error: the x-axis is rebuilt
     # from FIRSTX + DELTAX*(0:n-1), so the file decodes and x[end] is computed
     # (real V-730 reflectance files do this — see uvvis_refl.jws below).
@@ -597,7 +613,7 @@ end
     r = JASCOSpectrum(joinpath(data_dir, "uvvis_refl.jws"))
     @test r.yunits == "REFLECTANCE"
     @test isuvvis(r)
-    @test length(r) == 11
+    @test length(r.x) == 11
     @test r.x[1] == 700.0
     @test r.x[end] == 650.0          # computed from FIRSTX + DELTAX*(n-1); stored LASTX (400) is stale
     @test r.metadata["LASTX"] == 650.0
@@ -607,11 +623,162 @@ end
     ref = JASCOSpectrum(joinpath(data_dir, "uvvis_sb_ref.jws"))
     @test ref.yunits == "INTENSITY"
     @test ref.metadata["Channel"] == "Reference"
-    @test length(ref) == 21
+    @test length(ref.x) == 21
     @test ref.x[1] == 700.0 && ref.x[end] == 600.0
 
     samp = JASCOSpectrum(joinpath(data_dir, "uvvis_sb_sample.jws"))
     @test samp.yunits == "INTENSITY"
     @test samp.metadata["Channel"] == "Sample"
-    @test length(samp) == 21
+    @test length(samp.x) == 21
+end
+
+@testset "binary FTIR single-beam background (y-mode 0x08)" begin
+    # Verified against a real FT/IR-4600 background scan (BG_16_4.jws,
+    # 2019-09-25): y-mode 0x08 is the single-beam background channel.
+    bg = JASCOSpectrum(write_jws(make_jws(ymode=0x08)))
+    @test bg.yunits == "INTENSITY"
+    @test bg.metadata["Channel"] == "Background"
+end
+
+@testset "keyword and copy constructors (2.0)" begin
+    s = JASCOSpectrum(x=[1.0, 2.0], y=[0.1, 0.2])
+    @test s.title == "Untitled"
+    @test s.date === nothing
+    @test s.spectrometer == ""
+    @test s.datatype == ""
+    @test s.xunits == ""
+    @test s.yunits == ""
+    @test isempty(s.metadata)
+
+    # Copy constructor: override selected fields, share the rest
+    s2 = JASCOSpectrum(s; yunits="ABSORBANCE", title="copy")
+    @test s2.yunits == "ABSORBANCE"
+    @test s2.title == "copy"
+    @test s2.x === s.x
+    @test s2.y === s.y
+    @test s2.date === nothing
+
+    # x/y length mismatch is rejected at construction
+    @test_throws ArgumentError JASCOSpectrum(x=[1.0], y=[0.1, 0.2])
+end
+
+@testset "honest dates (2.0)" begin
+    # Unparseable DATE/TIME → nothing, never a fabricated sentinel
+    p = write_csv("TITLE,T\nDATE,InvalidDate\nTIME,InvalidTime\nXYDATA\n1,1\n2,2\n")
+    @test JASCOSpectrum(p).date === nothing
+
+    # Missing DATE/TIME → nothing
+    p2 = write_csv("TITLE,T\nXYDATA\n1,1\n2,2\n")
+    @test JASCOSpectrum(p2).date === nothing
+
+    # Four-digit-year date variant parses
+    p4 = write_csv("TITLE,T\nDATE,2024/11/05\nTIME,15:23:06\nXYDATA\n1,1\n2,2\n")
+    @test JASCOSpectrum(p4).date == DateTime(2024, 11, 5, 15, 23, 6)
+
+    # Binary: zeroed epoch field → nothing (make_jws leaves the epoch at 0)
+    @test JASCOSpectrum(write_jws(make_jws())).date === nothing
+end
+
+@testset "legacy .jws (Spectra Manager 1.x, OLE container)" begin
+    # %T file, 512-byte-sector CFB (v3). Real FT/IR-4600 measurement.
+    t = JASCOSpectrum(joinpath(data_dir, "legacy_trans_512.jws"))
+    @test t.yunits == "TRANSMITTANCE"
+    @test t.datatype == "INFRARED SPECTRUM"
+    @test t.xunits == "1/CM"
+    @test t.spectrometer == "FT/IR-4600typeA"
+    @test isftir(t)
+    @test length(t.x) == 7573
+    @test t.x[1] ≈ 499.4729 atol = 1e-3
+    @test t.metadata["Format"] == "SPCMAN2 CFB"
+    @test t.metadata["Serial Number"] == "E137161786"
+    @test t.metadata["Accumulation"] == 16
+    @test t.date isa DateTime    # stored UTC; CSV exports carry local time
+
+    # Same format written with 4096-byte sectors (CFB v4)
+    v4 = JASCOSpectrum(joinpath(data_dir, "legacy_trans_4096.jws"))
+    @test v4.yunits == "TRANSMITTANCE"
+    @test length(v4.x) == 7573
+
+    # Absorbance file (y-mode 0x03)
+    a = JASCOSpectrum(joinpath(data_dir, "legacy_abs_512.jws"))
+    @test a.yunits == "ABSORBANCE"
+
+    # Single-beam background (y-mode 0x08)
+    bg = JASCOSpectrum(joinpath(data_dir, "legacy_bg_512.jws"))
+    @test bg.yunits == "INTENSITY"
+    @test bg.metadata["Channel"] == "Background"
+    @test length(bg.x) == 12447
+
+    # Unit-aware conversion works straight off a legacy %T file
+    at = transmittance_to_absorbance(t)
+    @test at.yunits == "ABSORBANCE"
+end
+
+@testset "legacy .jws Raman (NRS-5100, non-linear X-Data axis)" begin
+    r = JASCOSpectrum(joinpath(data_dir, "legacy_raman.jws"))
+    @test israman(r)
+    @test r.datatype == "RAMAN SPECTRUM"
+    @test r.yunits == "INTENSITY"
+    @test r.xunits == "1/CM"
+    @test r.spectrometer == "NRS-5100"
+    @test length(r.x) == 1024
+    @test issorted(r.x)
+    @test r.date isa DateTime    # BaseInfo measurement date, UTC
+
+    # The Raman MeasParam tag namespace differs from FTIR: tags stay raw
+    # rather than being mislabeled with FTIR names.
+    @test !haskey(r.metadata, "Accumulation")
+    @test any(startswith("MeasParam.tag"), keys(r.metadata))
+
+    # Ground truth: JASCO's own CSV export of the same measurement
+    csv = JASCOSpectrum(joinpath(data_dir, "legacy_raman_pair.csv"))
+    @test length(r.x) == length(csv.x)
+    @test maximum(abs.(r.x .- csv.x)) < 1e-3      # export prints 4 decimals
+    @test all(isapprox.(r.y, csv.y; atol=1e-2, rtol=1e-4))
+    @test r.yunits == csv.yunits == "INTENSITY"
+    @test r.datatype == csv.datatype == "RAMAN SPECTRUM"
+end
+
+@testset "legacy .jws vs CSV export ground truth" begin
+    bin = JASCOSpectrum(joinpath(data_dir, "legacy_trans_512.jws"))
+    csv = JASCOSpectrum(joinpath(data_dir, "legacy_trans_512_pair.csv"))
+
+    @test length(bin.x) == length(csv.x)
+    # The export prints x to 4 decimals and accumulates ~3.7e-3 rounding
+    # drift over 7573 points; the binary grid is canonical.
+    @test maximum(abs.(bin.x .- csv.x)) < 0.005
+    # y values agree to the export's printed precision.
+    @test all(isapprox.(bin.y, csv.y; atol=1e-6, rtol=1e-4))
+
+    @test bin.yunits == csv.yunits == "TRANSMITTANCE"
+    @test bin.datatype == csv.datatype == "INFRARED SPECTRUM"
+    @test isftir(bin) == isftir(csv) == true
+end
+
+@testset "legacy .jws error paths" begin
+    raw = read(joinpath(data_dir, "legacy_trans_512.jws"))
+
+    # Corrupt magic: neither CFB nor "L~S " → routed to the modern reader,
+    # which rejects it.
+    bad = copy(raw)
+    bad[1] = 0x00
+    @test_throws "missing 'L~S '" JASCOSpectrum(write_jws(bad))
+
+    # Truncated container
+    @test_throws "truncated or corrupt CFB" JASCOSpectrum(write_jws(raw[1:1024]))
+
+    # Required stream missing: rename "DataInfo" (UTF-16LE) in the directory
+    nodata = copy(raw)
+    pat = reinterpret(UInt8, Vector{UInt16}(codeunits("DataInfo") .|> UInt16))
+    idx = findfirst(i -> nodata[i:i+length(pat)-1] == pat, 1:(length(nodata)-length(pat)+1))
+    @test idx !== nothing
+    nodata[idx] = UInt8('X')
+    @test_throws "missing stream 'DataInfo'" JASCOSpectrum(write_jws(nodata))
+end
+
+@testset "Base.length/size removed (2.0)" begin
+    # A spectrum is not a collection; use length(s.x). The Tables extension
+    # is the supported tabular interface.
+    @test !hasmethod(length, Tuple{JASCOSpectrum})
+    @test !hasmethod(size, Tuple{JASCOSpectrum})
 end

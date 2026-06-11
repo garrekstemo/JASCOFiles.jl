@@ -10,7 +10,10 @@
 const JWS_MAGIC = b"L~S "
 const JWS_VERSION = "R2.0.0"
 const JWS_IDS = ("SPECMAN", "SPECIRM")
-const JWS_HEADER_MIN = 0x300   # all fixed-offset fields live below this byte
+const JWS_DATA_OFFSET = 0x740  # fixed header size; the Float32 data block
+#                                starts here in every known SPECMAN/SPECIRM
+#                                R2.0.0 file (verified across FT/IR-4600 and
+#                                V-730 corpora, 2019–2026)
 
 # Byte offsets (0-based) into the fixed header.
 const OFF_FILEID     = 0x08
@@ -35,10 +38,12 @@ const YMODE_YUNITS = Dict{UInt8,String}(
     0x00 => "TRANSMITTANCE",
     0x02 => "REFLECTANCE",
     0x03 => "ABSORBANCE",
+    0x08 => "INTENSITY",   # single-beam, FTIR background channel
     0x09 => "INTENSITY",   # single-beam, reference channel
     0x0a => "INTENSITY",   # single-beam, sample channel
 )
-const YMODE_CHANNEL = Dict{UInt8,String}(0x09 => "Reference", 0x0a => "Sample")
+const YMODE_CHANNEL = Dict{UInt8,String}(
+    0x08 => "Background", 0x09 => "Reference", 0x0a => "Sample")
 
 # Read a little-endian scalar of type T at 0-based byte offset `off`.
 function read_le(::Type{T}, b::Vector{UInt8}, off::Integer) where {T}
@@ -75,7 +80,7 @@ function _read_jws(path::AbstractString; encoding=enc"SHIFT-JIS")
     n = length(bytes)
 
     # 1. minimum size for the fixed header
-    n >= JWS_HEADER_MIN ||
+    n >= JWS_DATA_OFFSET ||
         throw(ArgumentError("$fname: file too short ($n bytes) to be a JASCO .jws/.jrs file"))
 
     # 2. magic
@@ -106,11 +111,18 @@ function _read_jws(path::AbstractString; encoding=enc"SHIFT-JIS")
         throw(ArgumentError("$fname: unrecognized y-mode code 0x$(string(ymode, base=16)); please share this file"))
     yunits = YMODE_YUNITS[ymode]
 
-    # 7. point count / data block size
+    # 7. point count / data block size / data offset
     npoints = Int(read_le(Int32, bytes, OFF_NPOINTS))
     datalen = Int(read_le(Int64, bytes, OFF_DATALEN))
-    (npoints > 0 && datalen == npoints * 4 && n - datalen >= JWS_HEADER_MIN) ||
+    (npoints > 0 && datalen == npoints * 4) ||
         throw(ArgumentError("$fname: inconsistent point count (NPOINTS=$npoints, data=$datalen bytes, file=$n bytes)"))
+    # The data block is tail-anchored; in every known R2.0.0 file it begins
+    # exactly at the end of the fixed header. Any other offset means an
+    # unknown variant (e.g. appended blocks) — refuse rather than decode
+    # garbage.
+    doff = n - datalen
+    doff == JWS_DATA_OFFSET ||
+        throw(ArgumentError("$fname: unexpected data layout (data block at byte $doff, expected $(Int(JWS_DATA_OFFSET))); please share this file"))
 
     firstx = read_le(Float64, bytes, OFF_FIRSTX)
     deltax = read_le(Float64, bytes, OFF_DELTAX)
@@ -125,12 +137,11 @@ function _read_jws(path::AbstractString; encoding=enc"SHIFT-JIS")
     (isfinite(deltax) && deltax != 0) ||
         throw(ArgumentError("$fname: invalid DELTAX=$deltax"))
 
-    doff = n - datalen
     y = Float64.(ltoh.(reinterpret(Float32, bytes[doff+1:n])))
     x = collect(firstx .+ deltax .* (0:npoints-1))
 
     epoch = read_le(Int32, bytes, OFF_EPOCH)   # Unix epoch, UTC (Int32 field -> year-2038 ceiling)
-    date = epoch > 0 ? unix2datetime(epoch) : DateTime(2000)
+    date = epoch > 0 ? unix2datetime(epoch) : nothing
 
     serial  = read_cstr(bytes, OFF_SERIAL, 32, encoding)
     title   = read_cstr(bytes, OFF_TITLE, 64, encoding)
