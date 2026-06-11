@@ -352,6 +352,15 @@ end
     # Explicit percent always overrides yunits inference
     @test transmittance_to_absorbance(landmark; percent=false).y ≈ [-1.0, 0.0]
 
+    # Nonpositive transmittance (saturated bands, detector noise) maps to
+    # NaN with a warning, rather than crashing on log10
+    sat = JASCOSpectrum(x=[1.0, 2.0, 3.0], y=[50.0, 0.0, -0.1],
+                        yunits="TRANSMITTANCE")
+    asat = @test_logs (:warn, r"nonpositive") transmittance_to_absorbance(sat)
+    @test asat.y[1] ≈ -log10(0.5)
+    @test isnan(asat.y[2])
+    @test isnan(asat.y[3])
+
     # Binary %T file: inference works straight off the instrument file
     tbin = JASCOSpectrum(joinpath(data_dir, "uvvis_trans.jws"))
     abin = transmittance_to_absorbance(tbin)

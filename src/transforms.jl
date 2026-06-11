@@ -11,6 +11,10 @@ The transmittance scale is inferred from `spec.yunits`:
 Pass `percent=true`/`percent=false` to override the inference; an explicit
 `percent` is required when `yunits` is anything else.
 
+Nonpositive transmittance values (saturated bands, detector noise) have no
+absorbance: they map to `NaN`, with a warning reporting how many were
+affected.
+
 Returns a new `JASCOSpectrum` with `yunits = "ABSORBANCE"` (the same string
 JASCO instruments write), sharing `x` and `metadata` with the input.
 """
@@ -31,7 +35,13 @@ function transmittance_to_absorbance(spec::JASCOSpectrum;
         end
     end
     T_frac = percent ? spec.y ./ 100 : spec.y
-    return JASCOSpectrum(spec; y=-log10.(T_frac), yunits="ABSORBANCE")
+    nbad = count(t -> t <= 0, T_frac)
+    if nbad > 0
+        @warn "$(nbad) nonpositive transmittance value(s) mapped to NaN absorbance " *
+              "(saturated or noise-dominated points have no defined absorbance)"
+    end
+    new_y = [t > 0 ? -log10(t) : NaN for t in T_frac]
+    return JASCOSpectrum(spec; y=new_y, yunits="ABSORBANCE")
 end
 
 """
