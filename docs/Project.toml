@@ -4,4 +4,4 @@ JASCOFiles = "8f461479-960a-4355-a802-16cf8971498c"
 
 [compat]
 Documenter = "1"
-JASCOFiles = "1"
+JASCOFiles = "1, 2"
