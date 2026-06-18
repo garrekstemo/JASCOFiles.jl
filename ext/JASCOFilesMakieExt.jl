@@ -10,6 +10,35 @@ function Makie.convert_arguments(t::Makie.PointBased, s::JASCOSpectrum)
     return Makie.convert_arguments(t, s.x, s.y)
 end
 
+# Axis-label helpers for the `plot(s)` recipe. JASCOFiles is a pure reader and
+# owns no axis labels; this presentation logic lives with its only consumer.
+function _xlabel(s::AbstractJASCOSpectrum)
+    u = uppercase(s.xunits)
+    if u in ("1/CM", "CM-1")
+        israman(s) && return "Raman shift (cm⁻¹)"
+        return "Wavenumber (cm⁻¹)"
+    elseif u in ("NANOMETERS", "NM")
+        return "Wavelength (nm)"
+    else
+        return titlecase(s.xunits)
+    end
+end
+
+function _ylabel(s::AbstractJASCOSpectrum)
+    u = uppercase(s.yunits)
+    if u in ("ABSORBANCE", "ABS")
+        return "Absorbance"
+    elseif u == "INTENSITY"
+        return "Intensity"
+    elseif u == "TRANSMITTANCE"
+        return "Transmittance (%)"
+    elseif u == "TRANSMITTANCE_FRAC"
+        return "Transmittance"
+    else
+        return titlecase(s.yunits)
+    end
+end
+
 """
     plot(s::JASCOSpectrum; axis=NamedTuple(), kwargs...)
 
@@ -19,8 +48,7 @@ Available when Makie is loaded; load a backend (`using CairoMakie` or
 `(figure, axis, plot)`.
 
 Axis defaults:
-- `xlabel` from `xlabel(s)`
-- `ylabel` from `ylabel(s)`
+- `xlabel`/`ylabel` derived from `s.xunits`/`s.yunits`
 - `title`  from `s.title`
 - `xreversed = isftir(s)` (standard IR orientation: wavenumber decreases
   left-to-right)
@@ -41,10 +69,10 @@ function Makie.plot(s::JASCOSpectrum;
                     axis::NamedTuple = NamedTuple(),
                     kwargs...)
     default_axis = (
-        xlabel    = JASCOFiles.xlabel(s),
-        ylabel    = JASCOFiles.ylabel(s),
+        xlabel    = _xlabel(s),
+        ylabel    = _ylabel(s),
         title     = s.title,
-        xreversed = JASCOFiles.isftir(s),
+        xreversed = isftir(s),
     )
     return Makie.lines(s.x, s.y;
         axis = merge(default_axis, axis),

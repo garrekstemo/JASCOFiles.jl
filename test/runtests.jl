@@ -386,35 +386,43 @@ end
 end
 
 @testset "axis labels" begin
+    # Label logic lives in the Makie extension (JASCOFiles is a pure reader and
+    # owns no axis labels). Reach into the loaded extension to test it directly.
+    # Label helpers are private to the extension; fetch the loaded ext module to unit-test them (Makie is loaded at the top of this file).
+    ext = Base.get_extension(JASCOFiles, :JASCOFilesMakieExt)
+    @test ext !== nothing
+    _xlabel = ext._xlabel
+    _ylabel = ext._ylabel
+
     ftir = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))
     raman = JASCOSpectrum(joinpath(data_dir, "raman_test.csv"))
     uvvis = JASCOSpectrum(joinpath(data_dir, "uvvis_test.csv"))
 
-    @test xlabel(ftir) == "Wavenumber (cm⁻¹)"
-    @test ylabel(ftir) == "Absorbance"
+    @test _xlabel(ftir) == "Wavenumber (cm⁻¹)"
+    @test _ylabel(ftir) == "Absorbance"
 
-    @test xlabel(raman) == "Raman shift (cm⁻¹)"
-    @test ylabel(raman) == "Intensity"
+    @test _xlabel(raman) == "Raman shift (cm⁻¹)"
+    @test _ylabel(raman) == "Intensity"
 
-    @test xlabel(uvvis) == "Wavelength (nm)"
-    @test ylabel(uvvis) == "Absorbance"
+    @test _xlabel(uvvis) == "Wavelength (nm)"
+    @test _ylabel(uvvis) == "Absorbance"
 
-    # Transmittance variants from the transforms
-    t = absorbance_to_transmittance(ftir; percent=true)
-    @test ylabel(t) == "Transmittance (%)"
-    tf = absorbance_to_transmittance(ftir; percent=false)
-    @test ylabel(tf) == "Transmittance"
+    # Transmittance variants, constructed directly (no transform helper)
+    t = JASCOSpectrum(ftir; yunits="TRANSMITTANCE")
+    @test _ylabel(t) == "Transmittance (%)"
+    tf = JASCOSpectrum(ftir; yunits="TRANSMITTANCE_FRAC")
+    @test _ylabel(tf) == "Transmittance"
 
     # Unknown units fall back to title-casing the raw value
     weird = JASCOSpectrum(x=Float64[], y=Float64[], datatype="INFRARED SPECTRUM",
                           xunits="kelvin", yunits="candelas")
-    @test xlabel(weird) == "Kelvin"
-    @test ylabel(weird) == "Candelas"
+    @test _xlabel(weird) == "Kelvin"
+    @test _ylabel(weird) == "Candelas"
 
     # Empty units (honest defaults) yield empty labels, not fabricated ones
     bare = JASCOSpectrum(x=[1.0], y=[1.0])
-    @test xlabel(bare) == ""
-    @test ylabel(bare) == ""
+    @test _xlabel(bare) == ""
+    @test _ylabel(bare) == ""
 end
 
 @testset "Makie extension" begin
@@ -556,8 +564,6 @@ end
     @test bin.xunits == txt.xunits        # NANOMETERS
     @test bin.yunits == txt.yunits        # ABSORBANCE
     @test isuvvis(bin) == isuvvis(txt) == true
-    @test xlabel(bin) == xlabel(txt)
-    @test ylabel(bin) == ylabel(txt)
 end
 
 @testset "binary error paths" begin

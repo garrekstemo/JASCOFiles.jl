@@ -27,11 +27,9 @@ include("binary.jl")
 include("legacy.jl")
 include("utils.jl")
 include("transforms.jl")
-include("plotting.jl")
 
 export AbstractJASCOSpectrum, JASCOSpectrum
 export isftir, israman, isuvvis
 export transmittance_to_absorbance, absorbance_to_transmittance
-export xlabel, ylabel
 
 end # module
