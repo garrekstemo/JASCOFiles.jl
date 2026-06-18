@@ -50,6 +50,16 @@ end
     Aqua.test_all(JASCOFiles; deps_compat=(check_extras=false, ignore=[:Dates],))
 end
 
+@testset "reader owns no transforms or labels (3.0)" begin
+    # JASCOFiles is a pure reader: transmittance<->absorbance conversions and
+    # axis labels live in the analysis layer (OpticalSpectroscopy), not here.
+    # Guard against their reintroduction into the reader's public namespace.
+    for name in (:transmittance_to_absorbance, :absorbance_to_transmittance,
+                 :xlabel, :ylabel)
+        @test !isdefined(JASCOFiles, name)
+    end
+end
+
 @testset "read JASCO FTIR csv file" begin
     s = JASCOSpectrum(spectrum_file)
 
@@ -315,74 +325,6 @@ end
     explicit_call = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"); encoding=enc"SHIFT-JIS")
     @test default_call.title == explicit_call.title
     @test default_call.x == explicit_call.x
-end
-
-@testset "transmittance ↔ absorbance (unit-aware, 2.0)" begin
-    s = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))  # yunits ABSORBANCE
-
-    # absorbance → transmittance requires an explicit output scale
-    t = absorbance_to_transmittance(s; percent=true)
-    @test t.yunits == "TRANSMITTANCE"
-    @test t.x === s.x
-    @test t.metadata === s.metadata
-    @test t.title == s.title
-
-    # %T → absorbance: scale inferred from yunits; canonical output units
-    a = transmittance_to_absorbance(t)
-    @test a.yunits == "ABSORBANCE"
-    @test a.y ≈ s.y atol=1e-12
-
-    # Fractional round-trip via inference
-    tf = absorbance_to_transmittance(s; percent=false)
-    @test tf.yunits == "TRANSMITTANCE_FRAC"
-    af = transmittance_to_absorbance(tf)
-    @test af.yunits == "ABSORBANCE"
-    @test af.y ≈ s.y atol=1e-12
-
-    # Landmarks with inferred scale: T=10% → A=1, T=1% → A=2
-    landmark = JASCOSpectrum(x=[500.0, 600.0], y=[10.0, 1.0],
-                             datatype="UV/VIS SPECTRUM", xunits="NANOMETERS",
-                             yunits="TRANSMITTANCE")
-    @test transmittance_to_absorbance(landmark).y ≈ [1.0, 2.0]
-
-    landmark_frac = JASCOSpectrum(landmark; x=[500.0], y=[0.5],
-                                  yunits="TRANSMITTANCE_FRAC")
-    @test transmittance_to_absorbance(landmark_frac).y ≈ [-log10(0.5)]
-
-    # Explicit percent always overrides yunits inference
-    @test transmittance_to_absorbance(landmark; percent=false).y ≈ [-1.0, 0.0]
-
-    # Nonpositive transmittance (saturated bands, detector noise) maps to
-    # NaN with a warning, rather than crashing on log10
-    sat = JASCOSpectrum(x=[1.0, 2.0, 3.0], y=[50.0, 0.0, -0.1],
-                        yunits="TRANSMITTANCE")
-    asat = @test_logs (:warn, r"nonpositive") transmittance_to_absorbance(sat)
-    @test asat.y[1] ≈ -log10(0.5)
-    @test isnan(asat.y[2])
-    @test isnan(asat.y[3])
-
-    # Binary %T file: inference works straight off the instrument file
-    tbin = JASCOSpectrum(joinpath(data_dir, "uvvis_trans.jws"))
-    abin = transmittance_to_absorbance(tbin)
-    @test abin.yunits == "ABSORBANCE"
-    @test abin.y ≈ -log10.(tbin.y ./ 100)
-end
-
-@testset "conversion guards (2.0)" begin
-    s_abs = JASCOSpectrum(joinpath(data_dir, "ftir_test.csv"))    # ABSORBANCE
-    raman = JASCOSpectrum(joinpath(data_dir, "raman_test.csv"))   # INTENSITY
-
-    # t→a refuses input whose yunits is not a transmittance scale
-    # (and no explicit percent was given to override)
-    @test_throws ArgumentError transmittance_to_absorbance(s_abs)
-    @test_throws ArgumentError transmittance_to_absorbance(raman)
-
-    # a→t has no implicit output scale: percent is a required keyword
-    @test_throws UndefKeywordError absorbance_to_transmittance(s_abs)
-
-    # a→t refuses input that is already transmittance
-    t = absorbance_to_transmittance(s_abs; percent=true)
-    @test_throws ArgumentError absorbance_to_transmittance(t; percent=true)
 end
 
 @testset "axis labels" begin
@@ -715,9 +657,6 @@ end
     @test bg.metadata["Channel"] == "Background"
     @test length(bg.x) == 12447
 
-    # Unit-aware conversion works straight off a legacy %T file
-    at = transmittance_to_absorbance(t)
-    @test at.yunits == "ABSORBANCE"
 end
 
 @testset "legacy .jws Raman (NRS-5100, non-linear X-Data axis)" begin
