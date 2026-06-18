@@ -6,10 +6,9 @@ Reads JASCO spectrometer files into a `JASCOSpectrum`: CSV/text exports and nati
 
 Entry point `src/JASCOFiles.jl` (module + `include` order); browse `src/` for the rest. The type lives in `src/types.jl`; parsing/dispatch in `src/parser.jl`; binary readers in `binary.jl` (modern) and `legacy.jl` (OLE). Makie plotting and Tables interop are weakdep **extensions** (`ext/JASCOFilesMakieExt.jl`, `ext/JASCOFilesTablesExt.jl`), backed by `[weakdeps]` Makie + Tables. Format design specs in `docs/superpowers/specs/`.
 
-## Public API split (v3.0.0 unexport refactor)
+## Public API
 
-- **Exported:** `JASCOSpectrum`, `AbstractJASCOSpectrum`, `isftir`, `israman`, `isuvvis`.
-- **NOT exported (public, call qualified):** `JASCOFiles.transmittance_to_absorbance`, `absorbance_to_transmittance`, `xlabel`, `ylabel` (in `plotting.jl`). Names are generic and collide with OpticalSpectroscopy, which exports the same verbs — qualifying avoids ambiguous bindings.
+- **Exported (the entire public surface):** `JASCOSpectrum`, `AbstractJASCOSpectrum`, `isftir`, `israman`, `isuvvis`.
 
 `JASCOSpectrum` has three constructor forms (see `src/types.jl`): path parser `JASCOSpectrum(path; encoding=enc"SHIFT-JIS", translate=true)`, keyword form (only `x`, `y` required), and a copy constructor (replace a subset of fields, share the rest).
 
@@ -17,10 +16,9 @@ Entry point `src/JASCOFiles.jl` (module + `include` order); browse `src/` for th
 
 Fields are never fabricated: `date` is `nothing` when the file has no parseable timestamp; `spectrometer` is `""` when absent.
 
-## Transform unit semantics
+## Design invariant
 
-- `transmittance_to_absorbance`: scale inferred from `yunits` — `"TRANSMITTANCE"` = %T (0–100), `"TRANSMITTANCE_FRAC"` = 0–1; explicit `percent` overrides (and is required for any other `yunits`). Output `yunits = "ABSORBANCE"`; nonpositive T → `NaN`.
-- `absorbance_to_transmittance`: `percent` is a **required** keyword (`true` → %T / `"TRANSMITTANCE"`, `false` → `"TRANSMITTANCE_FRAC"`).
+The reader emits raw data plus the instrument's native unit strings (`xunits`/`yunits`). It owns **no transforms and no axis labels** — unit conversions (e.g. transmittance↔absorbance) and presentation belong to the analysis layer (OpticalSpectroscopy). The Makie `plot(s)` recipe keeps small private axis-label helpers (`_xlabel`/`_ylabel` in `ext/JASCOFilesMakieExt.jl`) for its own use only. Do not re-add these verbs to the reader's public API.
 
 ## File format
 
