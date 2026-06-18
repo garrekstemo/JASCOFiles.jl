@@ -328,9 +328,9 @@ end
 end
 
 @testset "axis labels" begin
-    # Label logic lives in the Makie extension (JASCOFiles is a pure reader and
-    # owns no axis labels). Reach into the loaded extension to test it directly.
-    # Label helpers are private to the extension; fetch the loaded ext module to unit-test them (Makie is loaded at the top of this file).
+    # Label logic is private to the Makie extension (JASCOFiles owns no axis
+    # labels); fetch the loaded ext module to unit-test the helpers directly
+    # (Makie is loaded at the top of this file).
     ext = Base.get_extension(JASCOFiles, :JASCOFilesMakieExt)
     @test ext !== nothing
     _xlabel = ext._xlabel
@@ -656,7 +656,6 @@ end
     @test bg.yunits == "INTENSITY"
     @test bg.metadata["Channel"] == "Background"
     @test length(bg.x) == 12447
-
 end
 
 @testset "legacy .jws Raman (NRS-5100, non-linear X-Data axis)" begin

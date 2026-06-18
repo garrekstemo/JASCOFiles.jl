@@ -12,7 +12,7 @@ JASCOFiles.jl reads JASCO spectrometer files (FTIR, Raman, and UV-Vis) into a [`
 
 The parser auto-detects the delimiter (comma for FTIR/Raman, tab for V-series UV-Vis) and decodes Japanese text encoding (SHIFT-JIS) by default, so the same `JASCOSpectrum(path)` call loads every file a JASCO instrument produces.
 
-The package is deliberately small so that it loads quickly. Some basic operations are included for convenience, like transforming between absorbance and transmittance, or plotting a spectrum in one line when Makie is loaded.
+The package is deliberately small so that it loads quickly. It is a pure reader: a spectrum is plain data (`s.x` and `s.y` are vectors), so any plotting or analysis package works directly, and a one-line `plot(s)` recipe is available when Makie is loaded.
 
 ## Installation
 
