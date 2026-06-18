@@ -1,111 +1,41 @@
 # JASCOFiles.jl
 
-Julia package for reading JASCO spectrometer files: the CSV/text exports and the native binary `.jws` / `.jrs` files.
+Reads JASCO spectrometer files into a `JASCOSpectrum`: CSV/text exports and native binary `.jws`/`.jrs`. Analysis-free reader layer (see ecosystem map in global CLAUDE.md).
 
-## Package Structure
+## Orientation
 
-```
-src/
-├── JASCOFiles.jl    # Module definition and exports
-├── types.jl         # AbstractJASCOSpectrum and JASCOSpectrum struct + constructors
-├── parser.jl        # CSV/text reader + magic-byte dispatch for binary formats
-├── binary.jl        # Modern .jws/.jrs (SPECMAN/SPECIRM "L~S " flat format)
-├── legacy.jl        # Legacy .jws (Spectra Manager 1.x, OLE2/CFB container)
-├── transforms.jl    # Unit-aware transmittance ↔ absorbance
-└── utils.jl         # Type predicates
+Entry point `src/JASCOFiles.jl` (module + `include` order); browse `src/` for the rest. The type lives in `src/types.jl`; parsing/dispatch in `src/parser.jl`; binary readers in `binary.jl` (modern) and `legacy.jl` (OLE). Makie plotting and Tables interop are weakdep **extensions** (`ext/JASCOFilesMakieExt.jl`, `ext/JASCOFilesTablesExt.jl`), backed by `[weakdeps]` Makie + Tables. Format design specs in `docs/superpowers/specs/`.
 
-test/
-├── runtests.jl      # Test suite
-└── data/            # Fixtures: CSV/text exports + modern and legacy binaries
-```
+## Public API split (v3.0.0 unexport refactor)
 
-Format specs live in `docs/superpowers/specs/`: `2026-06-04` (modern flat
-format), `2026-06-11` (legacy OLE container, incl. the NRS Raman addendum).
+- **Exported:** `JASCOSpectrum`, `AbstractJASCOSpectrum`, `isftir`, `israman`, `isuvvis`.
+- **NOT exported (public, call qualified):** `JASCOFiles.transmittance_to_absorbance`, `absorbance_to_transmittance`, `xlabel`, `ylabel` (in `plotting.jl`). Names are generic and collide with OpticalSpectroscopy, which exports the same verbs — qualifying avoids ambiguous bindings.
 
-## Type Hierarchy
+`JASCOSpectrum` has three constructor forms (see `src/types.jl`): path parser `JASCOSpectrum(path; encoding=enc"SHIFT-JIS", translate=true)`, keyword form (only `x`, `y` required), and a copy constructor (replace a subset of fields, share the rest).
 
-```julia
-abstract type AbstractJASCOSpectrum end
+## Honesty invariants
 
-struct JASCOSpectrum <: AbstractJASCOSpectrum
-    title::String
-    date::Union{DateTime, Nothing}   # nothing when the file has no parseable timestamp
-    spectrometer::String             # "" when absent — fields are never fabricated
-    datatype::String
-    xunits::String
-    yunits::String
-    x::Vector{Float64}
-    y::Vector{Float64}
-    metadata::Dict{String,Any}
-end
-```
+Fields are never fabricated: `date` is `nothing` when the file has no parseable timestamp; `spectrometer` is `""` when absent.
 
-## Public API
+## Transform unit semantics
 
-- `JASCOSpectrum(path; encoding=enc"SHIFT-JIS", translate=true)` - Parse a JASCO file (CSV/text, or binary `.jws`/`.jrs`)
-- `JASCOSpectrum(; x, y, kwargs...)` - Keyword constructor (only `x`, `y` required)
-- `JASCOSpectrum(s; kwargs...)` - Copy constructor with selected fields replaced
-- `isftir(s)` / `israman(s)` / `isuvvis(s)` - Instrument-type predicates
-- `transmittance_to_absorbance(s)` - Scale inferred from `yunits` ("TRANSMITTANCE" = %T, "TRANSMITTANCE_FRAC" = 0–1); explicit `percent` overrides; output `yunits = "ABSORBANCE"`
-- `absorbance_to_transmittance(s; percent)` - `percent` is a REQUIRED keyword (true → %T)
-- `xlabel(s)` / `ylabel(s)` - Formatted axis labels
+- `transmittance_to_absorbance`: scale inferred from `yunits` — `"TRANSMITTANCE"` = %T (0–100), `"TRANSMITTANCE_FRAC"` = 0–1; explicit `percent` overrides (and is required for any other `yunits`). Output `yunits = "ABSORBANCE"`; nonpositive T → `NaN`.
+- `absorbance_to_transmittance`: `percent` is a **required** keyword (`true` → %T / `"TRANSMITTANCE"`, `false` → `"TRANSMITTANCE_FRAC"`).
 
-## JASCO File Format
+## File format
 
-All JASCO spectrometer files share a common structure:
+Text files: header key-values → `XYDATA` marker → x,y data → optional footer (separated by a blank line). Delimiter (comma/tab) auto-detected from the first header line. Footer Japanese keys/values are translated to English via dual-key aliases (e.g. `metadata["積算回数"]` and `metadata["Accumulation"]` both resolve); pass `translate=false` to disable. Tables in `src/translations.jl`. Full field reference in the specs under `docs/superpowers/specs/`.
 
-1. **Header section**: Delimited key-value metadata pairs (comma or tab)
-2. **XYDATA marker**: Literal line containing "XYDATA"
-3. **Data section**: Delimited x,y coordinate pairs
-4. **Optional footer**: Instrument-specific metadata after the data section,
-   separated from the data by a blank line. Parsed when present; Japanese keys
-   and a small set of Japanese values are translated to English via dual-key
-   aliases (e.g. `metadata["積算回数"]` and `metadata["Accumulation"]` both
-   resolve to the same value). Pass `translate=false` to disable. Translation
-   tables live in `src/translations.jl` and are easy to extend.
+Default encoding is SHIFT-JIS.
 
-Common header metadata fields:
-- `TITLE`, `DATA TYPE`, `ORIGIN`, `DATE`, `TIME`
-- `SPECTROMETER/DATA SYSTEM`, `XUNITS`, `YUNITS`
-- `FIRSTX`, `LASTX`, `NPOINTS`
+**Binary:** modern `.jws`/`.jrs` use the SPECMAN/SPECIRM flat format; legacy `.jws` (Spectra Manager 1.x) use an OLE2/CFB container. Both share the `.jws` extension and are distinguished by magic-byte dispatch in `parser.jl`.
 
-Common footer metadata fields (English aliases):
-- `Sample name`, `Company`, `Operator`, `Creation date`
-- `Model Name`, `Serial Number`, `Measurement Date`
-- `Light source`, `Detector`, `Accumulation`, `Resolution`
-- `Aperture`, `Scan speed`, `Apodization`, `Zero-filling` (FTIR)
-- `Laser wavelength`, `Grating`, `Slit`, `CCD temperature` (Raman)
-- `Photometric mode`, `UV/Vis bandwidth`, `Response` (UV-Vis)
+## Supported instruments
 
-Encoding: SHIFT-JIS (Japanese character support)
+| Instrument | DATA TYPE | Notes |
+|------------|-----------|-------|
+| FTIR | `INFRARED SPECTRUM` | text + binary |
+| Raman | `RAMAN SPECTRUM` | text + legacy binary |
+| UV-Vis | `UV/VIS SPECTRUM`, or blank (V-series) | text + binary |
 
-## Supported Instruments
-
-| Instrument | DATA TYPE field | Delimiter | Status |
-|------------|-----------------|-----------|--------|
-| FTIR | INFRARED SPECTRUM | comma | Implemented |
-| Raman | RAMAN SPECTRUM | comma | Implemented |
-| UV-Vis | UV/VIS SPECTRUM or blank (V-series) | tab or comma | Implemented |
-| FTIR/UV-Vis | (binary) | .jws / .jrs | Implemented (native) |
-
-The parser auto-detects the delimiter from the first header line. V-series
-UV-Vis files (e.g. V-730) use tab separators and leave `DATA TYPE` blank;
-`isuvvis` infers UV-Vis from `XUNITS == "NANOMETERS"` and wavelength range
-when `DATA TYPE` is empty.
-
-## Development
-
-```julia
-julia --project=.
-using Revise, JASCOFiles
-```
-
-Run tests:
-```julia
-using Pkg; Pkg.test()
-```
-
-## Dependencies
-
-- `Dates` (stdlib)
-- `StringEncodings` - SHIFT-JIS encoding support
+**V-730 quirk:** V-series UV-Vis files use tab separators and leave `DATA TYPE` blank. `isuvvis` infers UV-Vis from `xunits == "NANOMETERS"` and a 100–3500 nm wavelength range when `DATA TYPE` is empty.
