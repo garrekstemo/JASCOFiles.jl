@@ -133,11 +133,10 @@ plot(s; color = :tomato)
 plot(s; axis = (xreversed = false, title = "My sample"))
 ```
 
-For full control, `s.x` and `s.y` are plain vectors, so any plotting package works. `xlabel(s)` and `ylabel(s)` produce nicely formatted labels (e.g. `"Wavenumber (cm⁻¹)"`, `"Transmittance (%)"`) for any library:
+For full control, `s.x` and `s.y` are plain vectors and `s.xunits`/`s.yunits` are the instrument's unit strings, so any plotting package works. JASCOFiles is a pure reader and ships no conversions or axis-label helpers — use [OpticalSpectroscopy.jl](https://github.com/garrekstemo/OpticalSpectroscopy.jl) for transmittance↔absorbance and formatted axis labels:
 
 ```julia
-fig, ax, ln = lines(s.x, s.y;
-    axis = (xlabel = xlabel(s), ylabel = ylabel(s), title = s.title))
+fig, ax, ln = lines(s.x, s.y; axis = (title = s.title,))
 ```
 
 ## DataFrames and CSV

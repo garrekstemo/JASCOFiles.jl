@@ -36,24 +36,6 @@ Pages = ["utils.jl"]
 Private = false
 ```
 
-## Transmittance ↔ absorbance conversions
-
-```@autodocs
-Modules = [JASCOFiles]
-Pages = ["transforms.jl"]
-Private = false
-```
-
-## Plotting helpers
-
-`xlabel` and `ylabel` produce nicely formatted axis labels (e.g. `"Wavenumber (cm⁻¹)"`, `"Transmittance (%)"`) from a spectrum's units. They work without any plotting backend loaded.
-
-```@autodocs
-Modules = [JASCOFiles]
-Pages = ["plotting.jl"]
-Private = false
-```
-
 ## Plotting with Makie
 
 When Makie is loaded, `plot(s)` is available via a package extension. Load a backend first (`using CairoMakie` or `using GLMakie`):
@@ -68,8 +50,7 @@ fig, ax, ln = plot(s; axis = (xreversed = false,))
 ```
 
 Axis defaults are filled from the spectrum:
-- `xlabel` from [`xlabel`](@ref)`(s)`
-- `ylabel` from [`ylabel`](@ref)`(s)`
+- `xlabel`/`ylabel` derived from `s.xunits`/`s.yunits`
 - `title` from `s.title`
 - `xreversed = isftir(s)` (standard IR orientation: wavenumber decreases left-to-right)
 
