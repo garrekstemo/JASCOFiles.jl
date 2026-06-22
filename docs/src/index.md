@@ -86,7 +86,7 @@ s.metadata["LASTX"]       # "7000.335"
 s.metadata["RESOLUTION"]  # "4"
 ```
 
-Values are stored as strings — they aren't converted to numbers automatically. The main header fields (TITLE, DATA TYPE, XUNITS, YUNITS, DATE, TIME, SPECTROMETER/DATA SYSTEM) are already accessible directly on the struct, so is used `metadata` for less common keys like instrument settings (laser power, detector type, integration count, etc.). See [File formats](guide/file-formats.md) for the per-instrument key list.
+Metadata values from CSV/text exports are kept as strings — they aren't converted to numbers automatically (note the quoted values above). The native binary reader, by contrast, may store a few keys as typed values (e.g. `DELTAX` as a `Float64`, `Derived` as a `Bool`, creation/measurement dates as `DateTime`). The main header fields (TITLE, DATA TYPE, XUNITS, YUNITS, DATE, TIME, SPECTROMETER/DATA SYSTEM) are already accessible directly on the struct, so `metadata` is used for less common keys like instrument settings (laser power, detector type, integration count, etc.). See [File formats](guide/file-formats.md) for the per-instrument key list.
 
 ## Checking the instrument
 

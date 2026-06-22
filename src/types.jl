@@ -34,7 +34,7 @@ The keyword constructor builds a spectrum directly; only `x` and `y` are
 required. The copy constructor returns a copy of `s` with any subset of
 fields replaced, sharing the rest:
 
-    a = JASCOSpectrum(s; yunits="ABSORBANCE", y=-log10.(s.y ./ 100))
+    a = JASCOSpectrum(s; title="Renamed", spectrometer="FT/IR-6600")
 
 `x` and `y` must have equal length.
 """
