@@ -48,7 +48,11 @@ Available when Makie is loaded; load a backend (`using CairoMakie` or
 `(figure, axis, plot)`.
 
 Axis defaults:
-- `xlabel`/`ylabel` derived from `s.xunits`/`s.yunits`
+- `xlabel`/`ylabel` derived from `s.xunits`/`s.yunits`. Recognized `yunits`
+  (case-insensitive): `ABSORBANCE`/`ABS` → "Absorbance", `INTENSITY` →
+  "Intensity", `TRANSMITTANCE` → "Transmittance (%)", and the fractional
+  sentinel `TRANSMITTANCE_FRAC` (0–1 transmittance) → "Transmittance"; any other
+  value is title-cased verbatim.
 - `title`  from `s.title`
 - `xreversed = isftir(s)` (standard IR orientation: wavenumber decreases
   left-to-right)
