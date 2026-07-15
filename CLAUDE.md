@@ -2,16 +2,6 @@
 
 Reads JASCO spectrometer files into a `JASCOSpectrum`: CSV/text exports and native binary `.jws`/`.jrs`. Analysis-free reader layer (see ecosystem map in global CLAUDE.md).
 
-## Orientation
-
-Entry point `src/JASCOFiles.jl` (module + `include` order); browse `src/` for the rest. The type lives in `src/types.jl`; parsing/dispatch in `src/parser.jl`; binary readers in `binary.jl` (modern) and `legacy.jl` (OLE). Makie plotting and Tables interop are weakdep **extensions** (`ext/JASCOFilesMakieExt.jl`, `ext/JASCOFilesTablesExt.jl`), backed by `[weakdeps]` Makie + Tables. Format design specs in `docs/superpowers/specs/`.
-
-## Public API
-
-- **Exported (the entire public surface):** `JASCOSpectrum`, `AbstractJASCOSpectrum`, `isftir`, `israman`, `isuvvis`.
-
-`JASCOSpectrum` has three constructor forms (see `src/types.jl`): path parser `JASCOSpectrum(path; encoding=enc"SHIFT-JIS", translate=true)`, keyword form (only `x`, `y` required), and a copy constructor (replace a subset of fields, share the rest).
-
 ## Honesty invariants
 
 Fields are never fabricated: `date` is `nothing` when the file has no parseable timestamp; `spectrometer` is `""` when absent.
